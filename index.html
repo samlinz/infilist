@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            text-transform: uppercase;
+        }
+
+        html, body {
+            overflow: hidden;
+            height: 100%;
+            width: 100%;
+            background-color: antiquewhite;
+        }
+
+        h2 {
+            text-align: center;
+        }
+
+        input[type=button] {
+            border-radius: 10%;
+            padding: 1em;
+            font-size: 2rem;
+            margin: 1rem auto auto auto;
+            outline: none;
+            display: block;
+            transition: all 0.5s;
+        }
+
+        input[type=button]:hover {
+            transform: translateX(-5px);
+            transform: translateY(-5px);
+            box-shadow: 0.2rem 0.2rem 0.2rem rgba(0, 0, 0, 0.2);
+        }
+
+        #scroll-container {
+            margin: auto;
+            width: 30%;
+            height: 50%;
+            border: 1px solid black;
+            background-color: white;
+            overflow-y: scroll;
+            position: relative;
+        }
+
+        #scroll-container > * {
+            border: 1px double aquamarine;
+        }
+    </style>
+</head>
+<body>
+
+<h2>Scroll test</h2>
+<div id="scroll-container">
+</div>
+<input type="button" value="Create item" id="button-create-item">
+
+<script src="scroll.js"></script>
+<script>
+    !function () {
+        const button = document.getElementById('button-create-item');
+        const root = document.getElementById('scroll-container');
+        let listCount = 0;
+
+        function getNewElement(text, height) {
+            const elem = document.createElement('p');
+            const elemTxt = document.createTextNode(text);
+            elem.style.height = height || '3em';
+            elem.appendChild(elemTxt);
+            return elem;
+        }
+
+        button.addEventListener('click', () => {
+            console.log('adding new element to list');
+            const elem = getNewElement(`Element ${++listCount} for the list. Lorem ipsum.`, '10rem');
+            root.appendChild(elem);
+        });
+
+        const scroll = new InfiScroll(root, {
+            query: function(index, resolve) {
+                console.log('creating ' + index);
+                const aa = document.createElement('p');
+                aa.style.height = '100px';
+                aa.style.width = '100%';
+                aa.appendChild(document.createTextNode('sibale ' + index));
+                setTimeout(() => resolve(aa), 600);
+
+            },
+            childSize: 100,
+            size: 50,
+            fixedSize: false
+        });
+    }();
+</script>
+</body>
+</html>

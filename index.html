@@ -48,6 +48,16 @@
 
         #scroll-container > * {
             border: 1px double aquamarine;
+            animation: fadeIn 0.2s;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
         }
     </style>
 </head>
@@ -58,6 +68,7 @@
 </div>
 <input type="button" value="Create item" id="button-create-item">
 
+<!--<script src="build/scroll.min.js"></script>-->
 <script src="scroll.js"></script>
 <script>
     !function () {
@@ -79,19 +90,21 @@
             root.appendChild(elem);
         });
 
-        const scroll = new InfiScroll(root, {
-            query: function(index, resolve) {
-                console.log('creating ' + index);
+        window.scroll = new InfiScroll(root, {
+            generator: function(index, resolve) {
                 const aa = document.createElement('p');
                 aa.style.height = '100px';
                 aa.style.width = '100%';
                 aa.appendChild(document.createTextNode('sibale ' + index));
-                setTimeout(() => resolve(aa), 600);
+
+                setTimeout(() => resolve(aa), 1000);
+                //setTimeout(() => resolve(aa), (Math.random() * 100) >>> 0);
 
             },
             childSize: 100,
             size: 50,
-            fixedSize: false
+            fixedSize: true,
+            elementLimit: 10
         });
     }();
 </script>

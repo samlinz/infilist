@@ -1,24 +1,23 @@
-!function () {
+const debugView = document.getElementById("debug-info");
+
+!(function () {
     "use strict";
 
     // Module constants.
-    const MODULE_NAME = 'InfiScroll';
+    const MODULE_NAME = "InfiScroll";
     const DEFAULT_TRESHOLD = 0.5;
     const SCROLL_THROTTLE = 100;
-    const LOAD_STYLES = Object.freeze({
-        LOAD_INDIVIDUAL: 'single',
-        LOAD_BATCHES: 'batches'
-    });
 
     const OPTIONS = Object.freeze({
-        TRESHOLD: 'treshold'            // Amount of pixels below the parent border which are deemed 'in view'.
-                                        // Calculated as CHILD_SIZE * TRESHOLD.
-        , ELEMENT_LIMIT: 'elementLimit' // Maximum list elements in DOM.
-        , SIZE: 'size'                  // Size of the list.
-        , QUERY: 'generator'            // Generator function.
-        , FIXED_SIZE: 'fixedSize'       // Boolean indicating if the list should initially display full height.
-        , CHILD_SIZE: 'childSize'       // Fixed height of a single list element.
-        , CACHE_SIZE: 'cacheSize'
+        TRESHOLD: "treshold", // Amount of pixels below and above the
+        // parent border which are deemed 'in view'.
+        // Calculated as CHILD_SIZE * TRESHOLD.
+        ELEMENT_LIMIT: "elementLimit", // Maximum list elements in DOM.
+        SIZE: "size", // Size of the list.
+        QUERY: "generator", // Generator function.
+        FIXED_SIZE: "fixedSize", // Boolean indicating if the list should initially display full height.
+        CHILD_SIZE: "childSize", // Fixed height of a single list element.
+        CACHE_SIZE: "cacheSize" // Size of the cache.
     });
 
     // Do not allow use in environments such as Node as it makes no sense.
@@ -54,13 +53,19 @@
      * @param {number} childSize Fixed size of a child container.
      */
     function getChildrenInView(rootTop, rootHeight, treshold, childSize) {
-        const top = rootTop
-            , totalHeight = rootHeight + treshold
-            , firstChildInView = (top / childSize) >>> 0
-            , firstChildExcess = firstChildInView * childSize
-            , viewLeft = totalHeight - (firstChildExcess - rootTop)
-            , childrenInView = Math.ceil(viewLeft / childSize);
+        const top = Math.max(rootTop - treshold, 0),
+            totalHeight = rootHeight + treshold * 2,
+            firstChildInView = (top / childSize) >>> 0,
+            firstChildExcess = firstChildInView * childSize,
+            viewLeft = totalHeight - (firstChildExcess - rootTop),
+            childrenInView = Math.ceil(viewLeft / childSize);
 
+        console.log("top " +top);
+        console.log("totalHeight " + totalHeight);
+        console.log("firstChildInView " + firstChildInView);
+        console.log("firstChildExcess " + firstChildExcess);
+        console.log("viewLeft " + viewLeft);
+        console.log("childrenInView " + childrenInView);
         return numRange(firstChildInView, childrenInView);
     }
 
@@ -86,6 +91,9 @@
         elements.flat().forEach(e => {
             const childId = getListItemId(e);
             const elem = document.getElementById(childId);
+            // The element is not in DOM.
+            if (!elem) return;
+
             console.log("Removing child " + childId + " from DOM");
             result.set(e, elem);
             parent.removeChild(elem);
@@ -115,7 +123,7 @@
      */
     function addChild(index, elem, finalElement) {
         // Position the element absolutely according to its ordinal position.
-        elem.style.position = 'absolute';
+        elem.style.position = "absolute";
         elem.style.margin = 0;
         elem.style.top = `${index * this.__childSize}px`;
         elem.id = getListItemId(index);
@@ -125,30 +133,45 @@
 
         // Stretch the view below last loaded element if not the last element.
         if (!finalElement) {
-            this.__dummyElement.top = `${(index + 1) * this.__childSize + this.__treshold}px`;
+            this.__dummyElement.top = `${(index + 1) * this.__childSize +
+        this.__treshold}px`;
             if (this.__dummyElement.parentNode)
                 this.element.removeChild(this.__dummyElement);
             this.element.appendChild(this.__dummyElement);
         }
         /*        if (!this.__options.fixedSize && this.__options.scrollOnLoad === true) {
-                    elem.scrollIntoView({
-                        behavior: 'smooth',
-                        block: 'end'
-                    });
-                }*/
+                        elem.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'end'
+                        });
+                    }*/
     }
 
     function onListItemGenerated(index, newElement) {
-        if (!this.__inView.has(index))
-            return;
+        // if (!this.__inView.has(index) || !this.__children.has(index)) {
+        //     // The item has been
+        //     return;
+        // }
 
         // Validate returned new child element.
-        if ((newElement === null || newElement === undefined))
-            return;
+        if (newElement === null || newElement === undefined) return;
         if (!(newElement instanceof HTMLElement))
-            throw Error(`${MODULE_NAME} query callback resolved with non-HTMLElement result.`);
+            throw Error(
+                `${MODULE_NAME} query callback resolved with non-HTMLElement result.`
+            );
 
         this.__queries.delete(index);
+
+        // Remove loaded element from cache.
+        this.__cache.delete(index);
+        const cachePosition = this.__cacheQueue.indexOf(index);
+        if (cachePosition != -1) {
+            this.__cacheQueue.splice(cachePosition, 1);
+        }
+
+        // Put to the tail of the queues.
+        this.__domElements.add(index);
+
         const lastItemInList = index === this.__size;
         addChild.call(this, index, newElement, lastItemInList);
     }
@@ -170,17 +193,19 @@
         // The parent element has to have absolute or relative position property to allow children
         // to be placed relative to its constraints.
         const computedStyle = window.getComputedStyle(elem);
-        if (!~(['absolute', 'relative'].indexOf(computedStyle.position)))
+        if (!~["absolute", "relative"].indexOf(computedStyle.position))
             throw Error(`${elem} must have position of 'absolute' or 'relative'`);
 
         if (!options)
-            throw Error(`options argument must be passed to ${MODULE_NAME} constructor`);
+            throw Error(
+                `options argument must be passed to ${MODULE_NAME} constructor`
+            );
 
         // Invalidate the list when window is resized.
         this.__resizeListener = () => {
             this.invalidate();
         };
-        window.addEventListener('resize', this.__resizeListener);
+        window.addEventListener("resize", this.__resizeListener);
 
         // Invalidate and recalculate the list when it's scrolled.
         // Throttle event firing to avoid needless computation.
@@ -194,19 +219,19 @@
                 scrollTimeout = null;
             }, SCROLL_THROTTLE);
         };
-        elem.addEventListener('scroll', this.__scrollListener);
+        elem.addEventListener("scroll", this.__scrollListener);
 
         // Clear the container.
         while (this.element.firstChild)
             this.element.removeChild(this.element.firstChild);
 
         // Inner state.
-        this.__children = new Set(); // All loaded children.
-        this.__inView = new Set();   // List items in view currently.
-        this.__queue = [];           // Queue to determine which elements to remove from DOM.
-        this.__cacheQueue = [];      // Queue to determine which elements to remove form cache.
-        this.__cache = new Map();    // Cached DOM elements.
-        this.__queries = new Set();  // Ongoing unresolved queries for new elements.
+        this.__domElements = new Set(); // All loaded children.
+        this.__inView = new Set(); // List items in view currently.
+        this.__queue = []; // Queue to determine which elements to remove from DOM.
+        this.__cacheQueue = []; // Queue to determine which elements to remove from cache.
+        this.__cache = new Map(); // Cached DOM elements.
+        this.__queries = new Set(); // Ongoing unresolved queries for new elements.
 
         // Handle passed options.
         requireOptions(options, OPTIONS.QUERY, OPTIONS.CHILD_SIZE);
@@ -216,22 +241,24 @@
         this.__size = options[OPTIONS.SIZE];
         this.__elementLimit = options[OPTIONS.ELEMENT_LIMIT];
         this.__cacheSize = options[OPTIONS.CACHE_SIZE];
-        this.__treshold = (OPTIONS.TRESHOLD in options
-            ? options[OPTIONS.TRESHOLD]
-            : DEFAULT_TRESHOLD)
-            * options.childSize;
+        this.__treshold =
+            (OPTIONS.TRESHOLD in options ?
+                options[OPTIONS.TRESHOLD] :
+                DEFAULT_TRESHOLD) * options.childSize;
 
-        !function() {
-            const extraKeys = Object.keys(options).filter(k => !~Object.values(OPTIONS).indexOf(k));
+        !(function () {
+            const extraKeys = Object.keys(options).filter(
+                k => !~Object.values(OPTIONS).indexOf(k)
+            );
             if (extraKeys.length)
                 warn(`Options object contained invalid options '${extraKeys}'. Typos?`);
-        }();
+        })();
 
         // Create 'dummy' div element which is used to handle the scroll height.
-        const dummy = document.createElement('div');
+        const dummy = document.createElement("div");
         dummy.style.height = dummy.style.width = 0;
-        dummy.style.visibility = 'none';
-        dummy.style.position = 'absolute';
+        dummy.style.visibility = "none";
+        dummy.style.position = "absolute";
         this.__dummyElement = dummy;
 
         // Create dummy element to stretch the container to full height on load.
@@ -244,52 +271,78 @@
         setTimeout(() => this.invalidate(), 0);
     }
 
-    ScrollElement.prototype.reload = function() {
-        removeChildren(this.element, Array.from(this.__children));
-        this.__children.clear();
+    ScrollElement.prototype.reload = function () {
+        removeChildren(this.element, Array.from(this.__domElements));
+        this.__domElements.clear();
         this.__inView.clear();
+        this.__cache.clear();
+        this.__queries.clear();
+        this.__queue = [];
+        this.__cacheQueue = [];
         this.__dummyElement.top = 0;
         this.invalidate();
     };
 
     ScrollElement.prototype.invalidate = function () {
+        // Get scrollable view dimensions.
         const scrollTop = this.element.scrollTop;
         const height = this.element.clientHeight;
 
         // Calculate which elements are in the view or inside treshold.
-        const elementsInView = getChildrenInView(scrollTop, height, this.__treshold, this.__childSize);
+        const elementsInView = getChildrenInView(
+            scrollTop,
+            height,
+            this.__treshold,
+            this.__childSize
+        );
+
         // Calculate set difference; which elements should be loaded.
-        const difference = elementsInView.filter(e => !this.__children.has(e));
+        const difference = elementsInView.filter(e => !this.__domElements.has(e));
 
         this.__inView = new Set(elementsInView);
-        difference.forEach(e => this.__queue.push(e));
+        difference
+            .filter(e => (this.__size ? e <= this.__size : true))
+            .forEach(e => this.__queue.push(e));
 
-        elementsInView.forEach(e => this.__children.add(e));
+        // If a limit for loaded DOM elements has been set, remove the oldest
+        // elementst in list.
         if (this.__elementLimit) {
             const elementsToRemove = [];
             let i = 0;
-            while (this.__queue.length > this.__elementLimit && i++ < this.__queue.length) {
+            while (
+                this.__queue.length > this.__elementLimit &&
+                i++ < this.__queue.length
+            ) {
                 const candidateForRemoval = this.__queue.shift();
-                if (this.__inView.has(candidateForRemoval) || this.__queries.has(candidateForRemoval))
+                if (
+                    this.__inView.has(candidateForRemoval) ||
+                    this.__queries.has(candidateForRemoval)
+                )
                     continue;
                 elementsToRemove.push(candidateForRemoval);
             }
 
             if (elementsToRemove.length) {
                 setTimeout(() => {
-                    const removedElements = removeChildren(this.element, elementsToRemove)
+                    // Remove oldest DOM elements and push the data into cache.
+                    const removedElements = removeChildren(
+                        this.element,
+                        elementsToRemove
+                    );
                     for (const [removedId, removedDom] of removedElements.entries()) {
                         this.__cacheQueue.push(removedId);
                         this.__cache.set(removedId, removedDom);
-                        this.__children.delete(removedId);
+                        this.__domElements.delete(removedId);
                     }
 
-                    console.log(this.__cacheQueue);
-
-                    while (this.__cacheSize && this.__cacheQueue.length > this.__cacheSize) {
+                    // Truncate the caceh as well according to cacheSize.
+                    while (
+                        this.__cacheSize &&
+                        this.__cacheQueue.length > this.__cacheSize
+                    ) {
                         const removeCachedId = this.__cacheQueue.shift();
                         this.__cache.delete(removeCachedId);
-                        console.log('removed from cache ' + removeCachedId);
+                        console.log("removed from cache " + removeCachedId);
                     }
                 }, 0);
             }
@@ -298,24 +351,35 @@
         // Generate required list elements.
         for (const childToQuery of difference) {
             // Do not attempt to load elements past the fixed size.
-            if (this.__size && childToQuery > this.__size)
-                continue;
+            if (this.__size && childToQuery > this.__size) continue;
 
             // Do not invoke generator if query is unresolved already.
             if (!this.__queries.has(childToQuery)) {
                 // Check if the DOM element has already been generated and cached.
                 if (this.__cache.has(childToQuery)) {
-                    console.log('got ' + childToQuery + ' from cache');
-                    onListItemGenerated.call(this, childToQuery, this.__cache.get(childToQuery))
-                    this.__cache.delete(childToQuery);
-                    this.__cacheQueue.splice(this.__cacheQueue.indexOf(childToQuery), 1)
+                    onListItemGenerated.call(
+                        this,
+                        childToQuery,
+                        this.__cache.get(childToQuery)
+                    );
                 } else {
-                    this.__query(childToQuery, newElement => onListItemGenerated.call(this, childToQuery, newElement));
+                    // Use user provided function to generate new element.
+                    this.__query(childToQuery, newElement =>
+                        onListItemGenerated.call(this, childToQuery, newElement)
+                    );
                 }
             }
-
-            this.__children.add(childToQuery);
         }
+
+        // Update debug text.
+        const debugString = [
+            "elementsinView " + JSON.stringify(elementsInView),
+            "queue " + JSON.stringify(this.__queue),
+            "cache " + JSON.stringify([...this.__cache]),
+            "cacheQueue " + JSON.stringify(this.__cacheQueue),
+            "children " + JSON.stringify([...this.__domElements])
+        ].join("<br />".repeat(2));
+        debugView.innerHTML = debugString;
     };
 
     /**
@@ -329,12 +393,14 @@
     };
 
     ScrollElement.prototype.dispose = function () {
-        window.removeEventListener('resize', this.__resizeListener);
-        this.element.removeEventListener('scroll', this.__scrollListener);
+        window.removeEventListener("resize", this.__resizeListener);
+        this.element.removeEventListener("scroll", this.__scrollListener);
     };
 
     // Bind as global function
     if (MODULE_NAME in window)
-        throw new Error(`CLASH: Global property ${MODULE_NAME} exist already in window!`);
+        throw new Error(
+            `CLASH: Global property ${MODULE_NAME} exist already in window!`
+        );
     window[MODULE_NAME] = ScrollElement;
-}();
+})();

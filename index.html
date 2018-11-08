@@ -51,6 +51,18 @@
             animation: fadeIn 0.2s;
         }
 
+        #debug-info {
+            position: absolute;
+            top: 1rem;
+            left: 1rem;
+            border: 1px dashed black;
+            font-size: 0.9rem;
+            padding: 1rem;
+            visibility: visible;
+            max-width: 40rem;
+            word-break: break-all;
+        }
+
         @keyframes fadeIn {
             from {
                 opacity: 0;
@@ -66,13 +78,16 @@
 <h2>Scroll test</h2>
 <div id="scroll-container">
 </div>
-<input type="button" value="Create item" id="button-create-item">
+<input type="button" value="RESET" id="button-reset">
+<div id="debug-info">
+    Hello world
+</div>
 
 <!--<script src="build/scroll.min.js"></script>-->
 <script src="scroll.js"></script>
 <script>
     !function () {
-        const button = document.getElementById('button-create-item');
+        const button = document.getElementById('button-reset');
         const root = document.getElementById('scroll-container');
         let listCount = 0;
 
@@ -85,9 +100,7 @@
         }
 
         button.addEventListener('click', () => {
-            console.log('adding new element to list');
-            const elem = getNewElement(`Element ${++listCount} for the list. Lorem ipsum.`, '10rem');
-            root.appendChild(elem);
+            window.scroll.reload();
         });
 
         window.scroll = new InfiScroll(root, {
@@ -96,14 +109,16 @@
                 aa.style.height = '100px';
                 aa.style.width = '100%';
                 aa.appendChild(document.createTextNode('sibale ' + index));
-
-                setTimeout(() => resolve(aa), 1000);
-                //setTimeout(() => resolve(aa), (Math.random() * 100) >>> 0);
+				
+           //     setTimeout(() => , 1000);
+                setTimeout(() => resolve(aa), Math.random() * 1000 >>> 0);
 
             },
             childSize: 100,
-            size: 50,
+            size: 200,
+            treshold: 3,
             fixedSize: true,
+            cacheSize: 100,
             elementLimit: 10
         });
     }();

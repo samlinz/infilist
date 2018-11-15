@@ -1,4 +1,4 @@
-//const debugView = document.getElementById('debug-view')
+const debugView = document.getElementById('debug-view')
 
 !(function() {
     "use strict";
@@ -130,9 +130,9 @@
      *
      * @param {number} index Ordinal index in the list.
      * @param {HTMLElement} elem Generated DOM element.
-     * @param {boolean} finalElement True if the element is last in the list.
+     * @param {boolean} inPlace If true the new object will replace old one.
      */
-    function addChild(index, elem, finalElement) {
+    function addChild(index, elem, inPlace) {
         // Position the element absolutely according to its ordinal position.
         elem.style.position = "absolute";
         elem.style.margin = 0;
@@ -141,8 +141,15 @@
         elem.style.right = 0;
         elem.id = getListItemId(index);
 
-        // Append the new child element to the containing div.
-        this.element.appendChild(elem);
+        if (inPlace) {
+            const listItemId = getListItemId(index);
+            const oldElement = document.getElementById(listItemId);
+            this.element.insertBefore(elem, oldElement);
+            this.element.removeChild(oldElement);
+        } else {
+            // Append the new child element to the containing div.
+            this.element.appendChild(elem);
+        }
 
         // If no child size is provided by the user,
         // size is calculated ad-hoc here from the first loaded
@@ -158,6 +165,7 @@
         }
 
         // Stretch the view below last loaded element if not the last element.
+        const finalElement = index === this.__size
         if (!finalElement) {
             this.__dummyElement.top = `${(index + 1) * this.__childSize +
                 this.__treshold}px`;
@@ -212,8 +220,7 @@
         // Put to the tail of the queues.
         this.__domElements.add(index);
 
-        const lastItemInList = index === this.__size;
-        addChild.call(this, index, newElement, lastItemInList);
+        addChild.call(this, index, newElement);
     }
 
     /**
@@ -274,6 +281,7 @@
         this.__cacheQueue = []; // Queue to determine which elements to remove from cache.
         this.__cache = new Map(); // Cached DOM elements.
         this.__queries = new Set(); // Ongoing unresolved queries for new elements.
+        this.__updateRequests = new Map(); // Ongoing update requests.
 
         // Handle passed options.
         requireOptions(options, OPTIONS.QUERY);
@@ -396,7 +404,7 @@
                         this.__domElements.delete(removedId);
                     }
 
-                    // Truncate the caceh as well according to cacheSize.
+                    // Truncate the cache according to cacheSize.
                     while (
                         this.__cacheSize &&
                         this.__cacheQueue.length > this.__cacheSize
@@ -449,9 +457,22 @@
      *
      * @param {HtmlElement} elem HTML element to append to the scrollable list.
      */
-    ScrollElement.prototype.addItem = function(generator) {
-        if (!(generator instanceof HTMLElement))
-            throw new Error(`Argument is not a HTMLElement`);
+    ScrollElement.prototype.updateItem = function(index, ...data) {
+        // The element is not visible; don't update
+        if (!this.__domElements.has(index)) return;
+
+        // Set random number as identifier for latest update request.
+        const randomIndex = Math.random() * 1000 >>> 0;
+        this.__updateRequests.set(index, randomIndex)
+        
+        this.__query(index, updatedElement => {
+            const latestRequestIndex = this.__updateRequests.get(index);
+            if (latestRequestIndex !== randomIndex) return;
+
+            addChild.call(this, index, updatedElement, true);
+            
+            console.log(index + ' updated in-place');
+        }, ...data);
     };
 
     ScrollElement.prototype.dispose = function() {

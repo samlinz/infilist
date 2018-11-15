@@ -336,6 +336,10 @@
         if (this.__check && !this.__check())
             return;
 
+        // If the element is not visible, do not update.
+        if (this.element.offsetParent === null)
+            return;
+
         // Get scrollable view dimensions.
         const scrollTop = this.element.scrollTop;
         const height = this.element.clientHeight;

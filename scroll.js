@@ -17,7 +17,8 @@
         QUERY: "generator", // Generator function.
         FIXED_SIZE: "fixedSize", // Boolean indicating if the list should initially display full height.
         CHILD_SIZE: "childSize", // Fixed height of a single list element.
-        CACHE_SIZE: "cacheSize" // Size of the cache.
+        CACHE_SIZE: "cacheSize", // Size of the cache.
+        INVALIDATE_CHECK: "checkFunction" // Function which will check if view should be updated
     });
 
     // Do not allow use in environments such as Node as it makes no sense.
@@ -277,6 +278,7 @@
         // Handle passed options.
         requireOptions(options, OPTIONS.QUERY);
         this.__query = options[OPTIONS.QUERY];
+        this.__check = options[OPTIONS.INVALIDATE_CHECK];
         this.__childSize = options[OPTIONS.CHILD_SIZE];
         this.__fixedSize = options[OPTIONS.FIXED_SIZE];
         this.__size = options[OPTIONS.SIZE];
@@ -329,6 +331,11 @@
     };
 
     ScrollElement.prototype.invalidate = function() {
+        // If the user has provided custom check run it
+        // If the user provided function returns false, do not continue
+        if (this.__check && !this.__check())
+            return;
+
         // Get scrollable view dimensions.
         const scrollTop = this.element.scrollTop;
         const height = this.element.clientHeight;

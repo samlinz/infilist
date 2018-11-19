@@ -1,6 +1,6 @@
-const debugView = document.getElementById('debug-view')
+const debugView = document.getElementById('debug-view');
 
-!(function() {
+!(function () {
     "use strict";
 
     // Module constants.
@@ -18,7 +18,8 @@ const debugView = document.getElementById('debug-view')
         FIXED_SIZE: "fixedSize", // Boolean indicating if the list should initially display full height.
         CHILD_SIZE: "childSize", // Fixed height of a single list element.
         CACHE_SIZE: "cacheSize", // Size of the cache.
-        INVALIDATE_CHECK: "checkFunction" // Function which will check if view should be updated
+        INVALIDATE_CHECK: "check", // Function which will check if view should be updated
+        DOM_DELETE: "domDelete" // Callback for DOM deletion
     });
 
     // Do not allow use in environments such as Node as it makes no sense.
@@ -141,6 +142,11 @@ const debugView = document.getElementById('debug-view')
         elem.style.right = 0;
         elem.id = getListItemId(index);
 
+        if (this.__childSize) {
+            debugger;
+            elem.style.height = `${this.__childSize}px`;
+        }
+
         if (inPlace) {
             const listItemId = getListItemId(index);
             const oldElement = document.getElementById(listItemId);
@@ -157,6 +163,7 @@ const debugView = document.getElementById('debug-view')
         if (!this.__childSize) {
             this.__childSize = elem.scrollHeight;
             this.__treshold = calculateTreshold.call(this);
+            recalculateHeights.call(this);
             setTimeout(() => this.invalidate(), 0);
 
             if (this.__fixedSize) {
@@ -173,17 +180,27 @@ const debugView = document.getElementById('debug-view')
                 this.element.removeChild(this.__dummyElement);
             this.element.appendChild(this.__dummyElement);
         }
-
-        /*        if (!this.__options.fixedSize && this.__options.scrollOnLoad === true) {
-                        elem.scrollIntoView({
-                            behavior: 'smooth',
-                            block: 'end'
-                        });
-                    }*/
     }
 
+    /**
+     * Calculate treshold value from configuration.
+     */
     function calculateTreshold() {
         return this.__tresholdFactor * this.__childSize;
+    }
+
+    /**
+     * After fixedSize is updated, this function will update
+     * existing DOM elements already loaded to page.
+     */
+    function recalculateHeights() {
+        for (const domElement of this.__domElements) {
+            const identifier = getListItemId(domElement);
+            const elem = document.getElementById(identifier);
+            if (elem) {
+                elem.style.height = `${this.__childSize}px`;
+            }
+        }
     }
 
     function positionDummyElement() {
@@ -292,10 +309,11 @@ const debugView = document.getElementById('debug-view')
         this.__size = options[OPTIONS.SIZE];
         this.__elementLimit = options[OPTIONS.ELEMENT_LIMIT];
         this.__cacheSize = options[OPTIONS.CACHE_SIZE];
+        this.__domDelete = options[OPTIONS.DOM_DELETE];
         this.__tresholdFactor =
-            OPTIONS.TRESHOLD in options
-                ? options[OPTIONS.TRESHOLD]
-                : DEFAULT_TRESHOLD;
+            OPTIONS.TRESHOLD in options ?
+            options[OPTIONS.TRESHOLD] :
+            DEFAULT_TRESHOLD;
 
         // Treshold calculation is deferred if no fixed child size is
         // provided.
@@ -303,7 +321,7 @@ const debugView = document.getElementById('debug-view')
             this.__treshold = this.__tresholdFactor * this.__childSize;
         }
 
-        !(function() {
+        !(function () {
             const extraKeys = Object.keys(options).filter(
                 k => !~Object.values(OPTIONS).indexOf(k)
             );
@@ -326,19 +344,26 @@ const debugView = document.getElementById('debug-view')
         setTimeout(() => this.invalidate(), 0);
     }
 
-    ScrollElement.prototype.reload = function() {
-        removeChildren(this.element, Array.from(this.__domElements));
+    ScrollElement.prototype.reload = function () {
+        // Remove elements from DOM.
+        while (this.element.firstChild)
+            this.element.removeChild(this.element.firstChild)
+
+        // Clear caches etc.
         this.__domElements.clear();
         this.__inView.clear();
         this.__cache.clear();
         this.__queries.clear();
+        this.__updateRequests.clear();
         this.__queue = [];
         this.__cacheQueue = [];
         this.__dummyElement.top = 0;
+
+        // Invalidate the list to reload it.
         this.invalidate();
     };
 
-    ScrollElement.prototype.invalidate = function() {
+    ScrollElement.prototype.invalidate = function () {
         // If the user has provided custom check run it
         // If the user provided function returns false, do not continue
         if (this.__check && !this.__check())
@@ -396,12 +421,13 @@ const debugView = document.getElementById('debug-view')
                         elementsToRemove
                     );
                     for (const [
-                        removedId,
-                        removedDom
-                    ] of removedElements.entries()) {
+                            removedId,
+                            removedDom
+                        ] of removedElements.entries()) {
                         this.__cacheQueue.push(removedId);
                         this.__cache.set(removedId, removedDom);
                         this.__domElements.delete(removedId);
+                        if (this.__domDelete) __domDelete(removedDom);
                     }
 
                     // Truncate the cache according to cacheSize.
@@ -448,7 +474,7 @@ const debugView = document.getElementById('debug-view')
         //     "cacheQueue " + JSON.stringify(this.__cacheQueue),
         //     "children " + JSON.stringify([...this.__domElements])
         // ].join("<br />".repeat(2));
-        
+
         // debugView.innerHTML = debugString;
     };
 
@@ -457,25 +483,33 @@ const debugView = document.getElementById('debug-view')
      *
      * @param {HtmlElement} elem HTML element to append to the scrollable list.
      */
-    ScrollElement.prototype.updateItem = function(index, ...data) {
+    ScrollElement.prototype.updateItem = function (index, ...data) {
         // The element is not visible; don't update
         if (!this.__domElements.has(index)) return;
 
         // Set random number as identifier for latest update request.
         const randomIndex = Math.random() * 1000 >>> 0;
         this.__updateRequests.set(index, randomIndex)
-        
+
         this.__query(index, updatedElement => {
             const latestRequestIndex = this.__updateRequests.get(index);
             if (latestRequestIndex !== randomIndex) return;
 
             addChild.call(this, index, updatedElement, true);
-            
+
             console.log(index + ' updated in-place');
         }, ...data);
     };
 
-    ScrollElement.prototype.dispose = function() {
+    ScrollElement.prototype.updateSize = function (size) {
+        if (!size || +size < 0)
+            throw Error(`Invalid size ${size}`);
+        this.__size = +size;
+
+        positionDummyElement.call(this);
+    }
+
+    ScrollElement.prototype.dispose = function () {
         window.removeEventListener("resize", this.__resizeListener);
         this.element.removeEventListener("scroll", this.__scrollListener);
     };

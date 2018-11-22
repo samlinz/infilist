@@ -1,4 +1,4 @@
-const debugView = document.getElementById('debug-view');
+//const debugView = document.getElementById('debug-view');
 
 !(function () {
     "use strict";
@@ -19,7 +19,9 @@ const debugView = document.getElementById('debug-view');
         CHILD_SIZE: "childSize", // Fixed height of a single list element.
         CACHE_SIZE: "cacheSize", // Size of the cache.
         INVALIDATE_CHECK: "check", // Function which will check if view should be updated
-        DOM_DELETE: "domDelete" // Callback for DOM deletion
+        DOM_DELETE: "domDelete", // Callback for DOM deletion
+        TOGGLE_SPINNER: "spinner", // Callback to show or hide spinner animation.
+        THROTTLE_SCROLL: "throttleScroll" // Callback to show or hide spinner animation.
     });
 
     // Do not allow use in environments such as Node as it makes no sense.
@@ -68,12 +70,6 @@ const debugView = document.getElementById('debug-view');
             viewLeft = totalHeight - (firstChildExcess - rootTop),
             childrenInView = Math.ceil(viewLeft / childSize);
 
-        console.log("top " + top);
-        console.log("totalHeight " + totalHeight);
-        console.log("firstChildInView " + firstChildInView);
-        console.log("firstChildExcess " + firstChildExcess);
-        console.log("viewLeft " + viewLeft);
-        console.log("childrenInView " + childrenInView);
         return numRange(firstChildInView, childrenInView);
     }
 
@@ -84,7 +80,7 @@ const debugView = document.getElementById('debug-view');
      * @returns {string} Generated id property.
      */
     function getListItemId(index) {
-        return `__${MODULE_NAME}_index_${index}`;
+        return `__${MODULE_NAME}_${this.__uniqueIdentifier}_index_${index}`;
     }
 
     /**
@@ -99,12 +95,11 @@ const debugView = document.getElementById('debug-view');
         elements
             .reduce((arr, val) => arr.concat(val))
             .forEach(e => {
-                const childId = getListItemId(e);
+                const childId = getListItemId.call(this, e);
                 const elem = document.getElementById(childId);
                 // The element is not in DOM.
                 if (!elem) return;
 
-                console.log("Removing child " + childId + " from DOM");
                 result.set(e, elem);
                 parent.removeChild(elem);
             });
@@ -135,20 +130,21 @@ const debugView = document.getElementById('debug-view');
      */
     function addChild(index, elem, inPlace) {
         // Position the element absolutely according to its ordinal position.
+        const childTop = index * this.__childSize;
+
         elem.style.position = "absolute";
         elem.style.margin = 0;
-        elem.style.top = `${index * this.__childSize}px`;
+        elem.style.top = `${childTop}px`;
         elem.style.left = 0;
         elem.style.right = 0;
-        elem.id = getListItemId(index);
+        elem.id = getListItemId.call(this, index);
 
         if (this.__childSize) {
-            debugger;
             elem.style.height = `${this.__childSize}px`;
         }
 
         if (inPlace) {
-            const listItemId = getListItemId(index);
+            const listItemId = elem.id;
             const oldElement = document.getElementById(listItemId);
             this.element.insertBefore(elem, oldElement);
             this.element.removeChild(oldElement);
@@ -164,7 +160,7 @@ const debugView = document.getElementById('debug-view');
             this.__childSize = elem.scrollHeight;
             this.__treshold = calculateTreshold.call(this);
             recalculateHeights.call(this);
-            setTimeout(() => this.invalidate(), 0);
+            setTimeout(this.invalidate.bind(this), 0);
 
             if (this.__fixedSize) {
                 positionDummyElement.call(this);
@@ -173,12 +169,17 @@ const debugView = document.getElementById('debug-view');
 
         // Stretch the view below last loaded element if not the last element.
         const finalElement = index === this.__size
+
         if (!finalElement) {
-            this.__dummyElement.top = `${(index + 1) * this.__childSize +
-                this.__treshold}px`;
-            if (this.__dummyElement.parentNode)
-                this.element.removeChild(this.__dummyElement);
-            this.element.appendChild(this.__dummyElement);
+            const currentScrollHeight = this.element.scrollHeight;
+            const maxScrollHeight = (this.__size + 1) * this.__childSize;
+            const newDummyTop = childTop + this.__childSize * 5;
+            if (newDummyTop > currentScrollHeight &&
+                (!maxScrollHeight || newDummyTop < maxScrollHeight)) {
+                this.__dummyElement.style.top = `${newDummyTop}px`;
+                if (!this.__dummyElement.offsetParent)
+                    this.element.appendChild(this.__dummyElement);
+            }
         }
     }
 
@@ -195,7 +196,7 @@ const debugView = document.getElementById('debug-view');
      */
     function recalculateHeights() {
         for (const domElement of this.__domElements) {
-            const identifier = getListItemId(domElement);
+            const identifier = getListItemId.call(this, domElement);
             const elem = document.getElementById(identifier);
             if (elem) {
                 elem.style.height = `${this.__childSize}px`;
@@ -205,21 +206,33 @@ const debugView = document.getElementById('debug-view');
 
     function positionDummyElement() {
         // Position dummy element to stretch the container to full height on load.
-        if (this.__fixedSize === false) return;
+        if (!this.__fixedSize) return;
 
         this.__dummyElement.style.top = `${this.__childSize *
             (this.__size + 1)}px`;
         this.element.appendChild(this.__dummyElement);
     }
 
-    function onListItemGenerated(index, newElement) {
-        // if (!this.__inView.has(index) || !this.__children.has(index)) {
-        //     // The item has been
-        //     return;
-        // }
+    function endOfListHit() {
+        if (!this.__size && this.__lastItemGenerated) {
+            const totalHeight = this.__lastItemGenerated * this.__childSize;
+            if (this.__dummyElement) {
+                this.__dummyElement.style.top = `${totalHeight}px`;
+            }
+            // Get rid of spinner.
+            if (this.__spinner) {
+                this.__spinner(false);
+            }
+        }
+    }
 
+    function onListItemGenerated(index, newElement) {
         // Validate returned new child element.
-        if (newElement === null || newElement === undefined) return;
+        if (newElement === null || newElement === undefined) {
+            // Generator returned null. Either hit end of the list or an error happened.
+            endOfListHit.call(this);
+            return;
+        }
         if (!(newElement instanceof HTMLElement))
             throw Error(
                 `${MODULE_NAME} query callback resolved with non-HTMLElement result.`
@@ -236,6 +249,11 @@ const debugView = document.getElementById('debug-view');
 
         // Put to the tail of the queues.
         this.__domElements.add(index);
+
+        // Keep track of the max index in list.
+        if (!this.__lastItemGenerated || index > this.__lastItemGenerated) {
+            this.__lastItemGenerated = index;
+        }
 
         addChild.call(this, index, newElement);
     }
@@ -273,18 +291,31 @@ const debugView = document.getElementById('debug-view');
         };
         window.addEventListener("resize", this.__resizeListener);
 
+        // If there are multiple list instances on a single page, they
+        // must be differentiated from each other.
+        let uniqueIdentifier = this.element.id;
+        if (!uniqueIdentifier) {
+            uniqueIdentifier = (Math.random()) * 1000000 >>> 0;
+        }
+
         // Invalidate and recalculate the list when it's scrolled.
         // Throttle event firing to avoid needless computation.
         let scrollTimeout = null;
         this.__scrollListener = () => {
-            if (scrollTimeout !== null) {
-                clearTimeout(scrollTimeout);
-            }
-            scrollTimeout = setTimeout(() => {
+            if (!this.__throttleScroll) {
                 this.invalidate();
-                scrollTimeout = null;
-            }, SCROLL_THROTTLE);
+            } else {
+                if (scrollTimeout !== null) {
+                    clearTimeout(scrollTimeout);
+                }
+                const _this = this;
+                scrollTimeout = setTimeout(() => {
+                    _this.invalidate();
+                    scrollTimeout = null;
+                }, SCROLL_THROTTLE);
+            }
         };
+        this.__scrollListener.bind(this);
         elem.addEventListener("scroll", this.__scrollListener);
 
         // Clear the container.
@@ -299,6 +330,8 @@ const debugView = document.getElementById('debug-view');
         this.__cache = new Map(); // Cached DOM elements.
         this.__queries = new Set(); // Ongoing unresolved queries for new elements.
         this.__updateRequests = new Map(); // Ongoing update requests.
+        this.__uniqueIdentifier = uniqueIdentifier; // Unique identifier for this instance.
+        this.__spinnerTimeout = null;
 
         // Handle passed options.
         requireOptions(options, OPTIONS.QUERY);
@@ -310,6 +343,10 @@ const debugView = document.getElementById('debug-view');
         this.__elementLimit = options[OPTIONS.ELEMENT_LIMIT];
         this.__cacheSize = options[OPTIONS.CACHE_SIZE];
         this.__domDelete = options[OPTIONS.DOM_DELETE];
+        this.__spinner = options[OPTIONS.TOGGLE_SPINNER];
+        this.__throttleScroll = OPTIONS.THROTTLE_SCROLL in options ?
+            options[OPTIONS.THROTTLE_SCROLL] :
+            true;
         this.__tresholdFactor =
             OPTIONS.TRESHOLD in options ?
             options[OPTIONS.TRESHOLD] :
@@ -318,10 +355,16 @@ const debugView = document.getElementById('debug-view');
         // Treshold calculation is deferred if no fixed child size is
         // provided.
         if (this.__childSize) {
-            this.__treshold = this.__tresholdFactor * this.__childSize;
+            this.__treshold = calculateTreshold.call(this);
         }
 
-        !(function () {
+        // Clone spinner.
+        if (this.__spinner && typeof this.__spinner !== "function") {
+            throw Error("Given spinner callback is not function. " +
+                "Provide a function which takes a single boolean parameter.");
+        }
+
+        (function () {
             const extraKeys = Object.keys(options).filter(
                 k => !~Object.values(OPTIONS).indexOf(k)
             );
@@ -334,14 +377,14 @@ const debugView = document.getElementById('debug-view');
         // Create 'dummy' div element which is used to handle the scroll height.
         const dummy = document.createElement("div");
         dummy.style.height = dummy.style.width = "1px";
-        dummy.style.visibility = "none";
+        dummy.style.visibility = "hidden";
         dummy.style.position = "absolute";
         this.__dummyElement = dummy;
 
         positionDummyElement.call(this);
 
         // Initial refresh
-        setTimeout(() => this.invalidate(), 0);
+        setTimeout(this.invalidate.bind(this), 0);
     }
 
     ScrollElement.prototype.reload = function () {
@@ -363,15 +406,25 @@ const debugView = document.getElementById('debug-view');
         this.invalidate();
     };
 
-    ScrollElement.prototype.invalidate = function () {
-        // If the user has provided custom check run it
-        // If the user provided function returns false, do not continue
-        if (this.__check && !this.__check())
+    /**
+     * Invalidate the current state, recalculate visible list items and
+     * generate or fetch the DOM elements and add them to the page.
+     * 
+     * @param {boolean} force If true then the list will be updated even if
+     * check fails or root element is not visible.
+     */
+    ScrollElement.prototype.invalidate = function (force = false) {
+        // If force bit is up, ignore checks.
+        if (!force) {
+            // If the user has provided custom check run it
+            // If the user provided function returns false, do not continue
+            if (this.__check && !this.__check())
             return;
 
-        // If the element is not visible, do not update.
-        if (this.element.offsetParent === null)
-            return;
+            // If the element is not visible, do not update.
+            if (this.element.offsetParent === null)
+                return;
+        }
 
         // Get scrollable view dimensions.
         const scrollTop = this.element.scrollTop;
@@ -414,9 +467,9 @@ const debugView = document.getElementById('debug-view');
             }
 
             if (elementsToRemove.length) {
-                setTimeout(() => {
+                const removeElements = () => {
                     // Remove oldest DOM elements and push the data into cache.
-                    const removedElements = removeChildren(
+                    const removedElements = removeChildren.call(this,
                         this.element,
                         elementsToRemove
                     );
@@ -437,16 +490,24 @@ const debugView = document.getElementById('debug-view');
                     ) {
                         const removeCachedId = this.__cacheQueue.shift();
                         this.__cache.delete(removeCachedId);
-                        console.log("removed from cache " + removeCachedId);
                     }
-                }, 0);
+                };
+                setTimeout(removeElements.bind(this), 0);
             }
         }
 
         // Generate required list elements.
         for (const childToQuery of difference) {
             // Do not attempt to load elements past the fixed size.
-            if (this.__size && childToQuery > this.__size) continue;
+            if (this.__size && childToQuery >= this.__size) continue;
+
+            // Show spinner if applicable.
+            if (this.__spinner) {
+                this.__spinner(true);
+                clearTimeout(this.__spinnerTimeout);
+                const _spinner = this.__spinner;
+                this.__spinnerTimeout = setTimeout(() => _spinner(false), 100);
+            }
 
             // Do not invoke generator if query is unresolved already.
             if (!this.__queries.has(childToQuery)) {
@@ -458,24 +519,29 @@ const debugView = document.getElementById('debug-view');
                         this.__cache.get(childToQuery)
                     );
                 } else {
-                    // Use user provided function to generate new element.
-                    this.__query(childToQuery, newElement =>
-                        onListItemGenerated.call(this, childToQuery, newElement)
-                    );
+                    // Calling generator function and adding to DOM are both
+                    // heavy operations and have to be passed as separate events
+                    // to avoid browser postponing them too much and making
+                    // list updates slow.
+
+                    const onGenerated = onListItemGenerated.bind(this);
+                    const generate = this.__query.bind(this);
+
+                    generate(childToQuery, newElement =>
+                        onGenerated(childToQuery, newElement));
                 }
             }
         }
 
-        // Update debug text.
+        //Update debug text.
         // const debugString = [
         //     "elementsinView " + JSON.stringify(elementsInView),
         //     "queue " + JSON.stringify(this.__queue),
         //     "cache " + JSON.stringify([...this.__cache]),
         //     "cacheQueue " + JSON.stringify(this.__cacheQueue),
         //     "children " + JSON.stringify([...this.__domElements])
-        // ].join("<br />".repeat(2));
-
-        // debugView.innerHTML = debugString;
+        // ];
+        // console.log(debugString.join(', '));
     };
 
     /**
@@ -496,8 +562,6 @@ const debugView = document.getElementById('debug-view');
             if (latestRequestIndex !== randomIndex) return;
 
             addChild.call(this, index, updatedElement, true);
-
-            console.log(index + ' updated in-place');
         }, ...data);
     };
 

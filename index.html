@@ -20,10 +20,18 @@
             text-align: center;
         }
 
+        .button-row {
+            display: flex;
+            flex-flow: row nowrap;
+            justify-items: center;
+            width: 30%;
+            margin: auto;
+        }
+
         input[type=button] {
             border-radius: 10%;
             padding: 1em;
-            font-size: 2rem;
+            font-size: 1.5rem;
             margin: 1rem auto auto auto;
             outline: none;
             display: block;
@@ -36,17 +44,23 @@
             box-shadow: 0.2rem 0.2rem 0.2rem rgba(0, 0, 0, 0.2);
         }
 
-        #scroll-container {
+        #scroll-wrapper {
+            position: relative;
             margin: auto;
             width: 30%;
             height: 50%;
+        }
+
+        .scroll-container {
+            width: 100%;
+            height: 100%;
             border: 1px solid black;
             background-color: white;
             overflow-y: scroll;
             position: relative;
         }
 
-        #scroll-container > * {
+        .scroll-container > * {
             border: 1px double aquamarine;
             animation: fadeIn 0.2s;
         }
@@ -63,6 +77,52 @@
             word-break: break-all;
         }
 
+        .lds-hourglass {
+            display: inline-block;
+            position: relative;
+            width: 64px;
+            height: 64px;
+        }
+
+        .lds-hourglass:after {
+            content: " ";
+            display: block;
+            border-radius: 50%;
+            width: 0;
+            height: 0;
+            margin: 6px;
+            box-sizing: border-box;
+            border: 26px solid #000;
+            border-color: #000 transparent #000 transparent;
+            animation: lds-hourglass 1.2s infinite;
+        }
+
+        .spinner {
+            position: absolute;
+            left: 50%;
+            bottom: 10%;
+            transition: opacity 1s, visibility 1s;
+        }
+
+        .spinner > * {
+            position: relative;
+            left: -50%;
+        }
+
+        @keyframes lds-hourglass {
+            0% {
+                transform: rotate(0);
+                animation-timing-function: cubic-bezier(0.55, 0.055, 0.675, 0.19);
+            }
+            50% {
+                transform: rotate(900deg);
+                animation-timing-function: cubic-bezier(0.215, 0.61, 0.355, 1);
+            }
+            100% {
+                transform: rotate(1800deg);
+            }
+        }
+
         @keyframes fadeIn {
             from {
                 opacity: 0;
@@ -76,9 +136,20 @@
 <body>
 
 <h2>Scroll test</h2>
-<div id="scroll-container">
+<div id="scroll-wrapper">
+    <div class="scroll-container" id="scroll-container">
+    </div>
+    <div class="scroll-container" id="scroll-container-2" style="display: none;">
+    </div>
+    <div class="spinner">
+        <div class="lds-hourglass"></div>
+    </div>
 </div>
-<input type="button" value="RESET" id="button-reset">
+<div class="button-row">
+    <input type="button" value="RESET" id="button-reset">
+    <input type="button" value="LIST 1" id="button-1">
+    <input type="button" value="LIST 2" id="button-2">
+</div>
 <div id="debug-info">
     Hello world
 </div>
@@ -88,7 +159,11 @@
 <script>
     !function () {
         const button = document.getElementById('button-reset');
+        const button1 = document.getElementById('button-1');
+        const button2 = document.getElementById('button-2');
         const root = document.getElementById('scroll-container');
+        const root2 = document.getElementById('scroll-container-2');
+        const spinner = document.querySelector('.spinner');
         let listCount = 0;
 
         function getNewElement(text, height) {
@@ -100,27 +175,45 @@
         }
 
         button.addEventListener('click', () => {
-            window.scroll.reload();
+            root.scrollList.reload();
+            root2.scrollList.reload();
         });
 
-        window.scroll = new InfiScroll(root, {
+        button1.addEventListener('click', () => {
+            root.style.display = 'block';
+            root.scrollList.invalidate();
+            root2.style.display = 'none';
+        });
+
+        button2.addEventListener('click', () => {
+            root2.style.display = 'block';
+            root2.scrollList.invalidate();
+            root.style.display = 'none';
+        });
+
+        for (const rootElem of [root, root2]) {
+            rootElem.scrollList = new InfiScroll(rootElem, {
             generator: function(index, resolve) {
                 const aa = document.createElement('p');
                 aa.style.height = '100px';
                 aa.style.width = '100%';
                 aa.appendChild(document.createTextNode('sibale ' + index));
-				
-           //     setTimeout(() => , 1000);
-                setTimeout(() => resolve(aa), Math.random() * 1000 >>> 0);
+				if (index > 40) {
+                    resolve(null);
+                    return;
+                }
 
+                setTimeout(() => resolve(aa), Math.random() * 1000 >>> 0);
             },
             childSize: 100,
-            size: 200,
-            treshold: 3,
-            fixedSize: true,
-            cacheSize: 100,
-            elementLimit: 10
+            treshold: 5,
+            throttleScroll: false,
+            size: 40,
+            spinner: show => {
+                spinner.style.opacity = show ? 1 : 0;
+            }
         });
+        }
     }();
 </script>
 </body>

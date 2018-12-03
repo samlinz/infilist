@@ -21,7 +21,9 @@
         INVALIDATE_CHECK: "check", // Function which will check if view should be updated
         DOM_DELETE: "domDelete", // Callback for DOM deletion
         TOGGLE_SPINNER: "spinner", // Callback to show or hide spinner animation.
-        THROTTLE_SCROLL: "throttleScroll" // Callback to show or hide spinner animation.
+        THROTTLE_SCROLL: "throttleScroll", // Callback to show or hide spinner animation.
+        KEEP_POSITION_ON_RELOAD: "keepPositionOnReload", // Do not reset scroll height when reloading.
+        BATCH_LOAD: "batchLoad" // Do not reset scroll height when reloading.
     });
 
     // Do not allow use in environments such as Node as it makes no sense.
@@ -63,12 +65,23 @@
         // to calculate the fixed height.
         if (!childSize) return [0];
 
-        const top = Math.max(rootTop - treshold, 0),
-            totalHeight = rootHeight + treshold * 2,
+        const top = Math.max(rootTop, 0),
+            totalHeight = rootHeight + treshold,
             firstChildInView = (top / childSize) >>> 0,
             firstChildExcess = firstChildInView * childSize,
             viewLeft = totalHeight - (firstChildExcess - rootTop),
             childrenInView = Math.ceil(viewLeft / childSize);
+
+        // console.log("rootTop " + rootTop);
+        // console.log("rootHeight " + rootHeight);
+        // console.log("treshold " + treshold);
+        // console.log("childSize " + childSize);
+        // console.log("top " + top);
+        // console.log("totalHeight " + totalHeight);
+        // console.log("firstChildInView " + firstChildInView);
+        // console.log("firstChildExcess " + firstChildExcess);
+        // console.log("viewLeft " + viewLeft);
+        // console.log("childrenInView " + childrenInView);
 
         return numRange(firstChildInView, childrenInView);
     }
@@ -171,12 +184,14 @@
         const finalElement = index === this.__size
 
         if (!finalElement) {
-            const currentScrollHeight = this.element.scrollHeight;
-            const maxScrollHeight = (this.__size + 1) * this.__childSize;
+            // const currentScrollHeight = this.element.scrollHeight;
+            const currentScrollHeight = this.__currentScrollHeight;
+            const maxScrollHeight = this.__size * this.__childSize;
             const newDummyTop = childTop + this.__childSize * 5;
-            if (newDummyTop > currentScrollHeight &&
-                (!maxScrollHeight || newDummyTop < maxScrollHeight)) {
-                this.__dummyElement.style.top = `${newDummyTop}px`;
+            if (newDummyTop > currentScrollHeight) {
+                const dummyTop = Math.min(maxScrollHeight, newDummyTop);
+                this.__dummyElement.style.top = `${dummyTop}px`;
+                this.__currentScrollHeight = dummyTop;
                 if (!this.__dummyElement.offsetParent)
                     this.element.appendChild(this.__dummyElement);
             }
@@ -219,6 +234,7 @@
             if (this.__dummyElement) {
                 this.__dummyElement.style.top = `${totalHeight}px`;
             }
+
             // Get rid of spinner.
             if (this.__spinner) {
                 this.__spinner(false);
@@ -226,19 +242,54 @@
         }
     }
 
-    function onListItemGenerated(index, newElement) {
+    function onListItemGenerated(index, newElement, uniqueIdentifier) {
+        if (!uniqueIdentifier) {
+            throw Error('Null uniqueIdentifier');
+        }
+        
         // Validate returned new child element.
         if (newElement === null || newElement === undefined) {
             // Generator returned null. Either hit end of the list or an error happened.
             endOfListHit.call(this);
             return;
         }
+
+        // The list has been reloaded while the element was being generated;
+        // ignore this instance.
+        if (this.__uniqueIdentifier !== uniqueIdentifier) {
+            return;
+        }
+
+        if (index.constructor === Array) {
+            // The result is a list of DOM elements.
+            for (let i = 0; i < index.length; i++) {
+                const id = index[i];
+                const element = newElement[i];
+                const onGenerated = onListItemGenerated.bind(this);
+                setTimeout(() => onGenerated(id, element, uniqueIdentifier), 0);
+            }
+
+            return;
+        }
+
         if (!(newElement instanceof HTMLElement))
             throw Error(
                 `${MODULE_NAME} query callback resolved with non-HTMLElement result.`
             );
 
+        // Remove this index from pending queries.
         this.__queries.delete(index);
+        if (this.__queries.size === 0 && this.__reloading) {
+            this.__reloading = false;
+            if (this.__reloadAfterInvalidation) {
+                // A new reload request has been fire while the first reload
+                // was going on; invalidate again.
+                this.__reloadAfterInvalidation = false;
+                const reload = this.reload.bind(this);
+                setTimeout(() => reload(), 0);
+                return;
+            }
+        }
 
         // Remove loaded element from cache.
         this.__cache.delete(index);
@@ -332,6 +383,7 @@
         this.__updateRequests = new Map(); // Ongoing update requests.
         this.__uniqueIdentifier = uniqueIdentifier; // Unique identifier for this instance.
         this.__spinnerTimeout = null;
+        this.__currentScrollHeight = 0;
 
         // Handle passed options.
         requireOptions(options, OPTIONS.QUERY);
@@ -344,6 +396,8 @@
         this.__cacheSize = options[OPTIONS.CACHE_SIZE];
         this.__domDelete = options[OPTIONS.DOM_DELETE];
         this.__spinner = options[OPTIONS.TOGGLE_SPINNER];
+        this.__keepPositionOnReload = options[OPTIONS.KEEP_POSITION_ON_RELOAD];
+        this.__batchLoad = options[OPTIONS.BATCH_LOAD];
         this.__throttleScroll = OPTIONS.THROTTLE_SCROLL in options ?
             options[OPTIONS.THROTTLE_SCROLL] :
             true;
@@ -352,16 +406,24 @@
             options[OPTIONS.TRESHOLD] :
             DEFAULT_TRESHOLD;
 
+        // Idenfity this session by random id, if the list is reloaded
+        // it will be different.
+        this.__uniqueIdentifier = Math.random() * 1000000 >>> 0;
+
         // Treshold calculation is deferred if no fixed child size is
         // provided.
         if (this.__childSize) {
             this.__treshold = calculateTreshold.call(this);
         }
 
-        // Clone spinner.
-        if (this.__spinner && typeof this.__spinner !== "function") {
-            throw Error("Given spinner callback is not function. " +
-                "Provide a function which takes a single boolean parameter.");
+        // Show spinner if it is supported.
+        if (this.__spinner) {
+            if (typeof this.__spinner !== "function") {
+                throw Error("Given spinner callback is not function. " +
+                    "Provide a function which takes a single boolean parameter.");
+            }
+
+            this.__spinner(true);
         }
 
         (function () {
@@ -388,9 +450,23 @@
     }
 
     ScrollElement.prototype.reload = function () {
+        if (this.__reloading) {
+            this.__reloadAfterInvalidation = true;
+            return; 
+        }
+        this.__reloading = true;
+
         // Remove elements from DOM.
-        while (this.element.firstChild)
-            this.element.removeChild(this.element.firstChild)
+        const childNodes = this.element.childNodes;
+        const childrenToRemove = [];
+        for (const childElement of childNodes) {
+            if (childElement.id.indexOf(MODULE_NAME) !== -1) {
+                childrenToRemove.push(childElement);
+            }
+        }
+        for (const childToRemove of childrenToRemove) {
+            this.element.removeChild(childToRemove);
+        }
 
         // Clear caches etc.
         this.__domElements.clear();
@@ -400,10 +476,17 @@
         this.__updateRequests.clear();
         this.__queue = [];
         this.__cacheQueue = [];
-        this.__dummyElement.top = 0;
+        if (!this.__keepPositionOnReload) {
+            this.__dummyElement.top = 0;
+            this.__currentScrollHeight = 0;
+        }
+
+        // Create a new unique identifier.
+        this.__uniqueIdentifier = Math.random() * 1000000 >>> 0;
 
         // Invalidate the list to reload it.
-        this.invalidate();
+        const invalidate = this.invalidate.bind(this)
+        setTimeout(() => invalidate(), 0);
     };
 
     /**
@@ -418,12 +501,14 @@
         if (!force) {
             // If the user has provided custom check run it
             // If the user provided function returns false, do not continue
-            if (this.__check && !this.__check())
-            return;
-
-            // If the element is not visible, do not update.
-            if (this.element.offsetParent === null)
-                return;
+            if (this.__check) {
+                if (!this.__check())
+                    return;
+            } else {
+                // If the element is not visible, do not update.
+                if (this.element.offsetParent === null)
+                    return;
+            }
         }
 
         // Get scrollable view dimensions.
@@ -445,8 +530,7 @@
 
         this.__inView = new Set(elementsInView);
         difference
-            .filter(e => (this.__size ? e <= this.__size : true))
-            .forEach(e => this.__queue.push(e));
+            .filter(e => (this.__size ? e <= this.__size : true));
 
         // If a limit for loaded DOM elements has been set, remove the oldest
         // elementst in list.
@@ -458,6 +542,7 @@
                 i++ < this.__queue.length
             ) {
                 const candidateForRemoval = this.__queue.shift();
+
                 if (
                     this.__inView.has(candidateForRemoval) ||
                     this.__queries.has(candidateForRemoval)
@@ -496,6 +581,11 @@
             }
         }
 
+        let childrenToLoad = [];
+
+        // Persist the unique identifier at the moment of invalidation.
+        const uniqueIdentifier = this.__uniqueIdentifier;
+
         // Generate required list elements.
         for (const childToQuery of difference) {
             // Do not attempt to load elements past the fixed size.
@@ -511,25 +601,39 @@
 
             // Do not invoke generator if query is unresolved already.
             if (!this.__queries.has(childToQuery)) {
+                this.__queue.push(childToQuery);
+
                 // Check if the DOM element has already been generated and cached.
                 if (this.__cache.has(childToQuery)) {
                     onListItemGenerated.call(
                         this,
                         childToQuery,
-                        this.__cache.get(childToQuery)
+                        this.__cache.get(childToQuery),
+                        uniqueIdentifier
                     );
                 } else {
-                    // Calling generator function and adding to DOM are both
-                    // heavy operations and have to be passed as separate events
-                    // to avoid browser postponing them too much and making
-                    // list updates slow.
-
-                    const onGenerated = onListItemGenerated.bind(this);
-                    const generate = this.__query.bind(this);
-
-                    generate(childToQuery, newElement =>
-                        onGenerated(childToQuery, newElement));
+                    this.__queries.add(childToQuery);
+                    childrenToLoad.push(childToQuery);
                 }
+            }
+        }
+
+        const onGenerated = onListItemGenerated.bind(this);
+        const generate = this.__query.bind(this);
+
+        if (this.__batchLoad) {
+            // If the user wants to load in batches, call the generator with
+            // all of the elements at once.
+            generate(childrenToLoad, newElements =>
+                onGenerated(childrenToLoad, newElements, uniqueIdentifier));
+        } else {
+            for (const childToQuery of childrenToLoad) {
+                // Calling generator function and adding to DOM are both
+                // heavy operations and have to be passed as separate events
+                // to avoid browser postponing them too much and making
+                // list updates slow.
+                generate(childToQuery, newElement =>
+                    onGenerated(childToQuery, newElement, uniqueIdentifier));
             }
         }
 
@@ -558,9 +662,14 @@
         this.__updateRequests.set(index, randomIndex)
 
         this.__query(index, updatedElement => {
+            if (!updatedElement) return;
+
+            if (updatedElement.constructor === Array) {
+                updatedElement = updatedElement[0];
+            }
+
             const latestRequestIndex = this.__updateRequests.get(index);
             if (latestRequestIndex !== randomIndex) return;
-
             addChild.call(this, index, updatedElement, true);
         }, ...data);
     };
@@ -568,9 +677,20 @@
     ScrollElement.prototype.updateSize = function (size) {
         if (!size || +size < 0)
             throw Error(`Invalid size ${size}`);
-        this.__size = +size;
+        const newSize = +size;
 
+        this.__size = newSize;
+
+        // Update scroll element height if fixed.
         positionDummyElement.call(this);
+
+        // Update scroll element height so it doesn't go out of bounds.
+        const newMaxScrollHeight = newSize * this.__childSize;
+        const dummyTop = Number.parseInt(this.__dummyElement.style.top);
+        if (dummyTop > newMaxScrollHeight) {
+            this.__dummyElement.style.top = `${newMaxScrollHeight}px`;
+            this.__currentScrollHeight = newMaxScrollHeight;
+        }
     }
 
     ScrollElement.prototype.dispose = function () {

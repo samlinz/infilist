@@ -149,11 +149,12 @@
     <input type="button" value="RESET" id="button-reset">
     <input type="button" value="LIST 1" id="button-1">
     <input type="button" value="LIST 2" id="button-2">
+    <input type="button" value="CHANGE SIZE" id="button-3">
 </div>
 <div id="debug-info">
     Hello world
 </div>
-
+>
 <!--<script src="build/scroll.min.js"></script>-->
 <script src="scroll.js"></script>
 <script>
@@ -161,6 +162,7 @@
         const button = document.getElementById('button-reset');
         const button1 = document.getElementById('button-1');
         const button2 = document.getElementById('button-2');
+        const button3 = document.getElementById('button-3');
         const root = document.getElementById('scroll-container');
         const root2 = document.getElementById('scroll-container-2');
         const spinner = document.querySelector('.spinner');
@@ -191,27 +193,53 @@
             root.style.display = 'none';
         });
 
+        button3.addEventListener('click', () => {
+            const newSize = Number(window.prompt('New size'));
+            if (!Number.isInteger(newSize) || newSize < 0) {
+                alert('Invalid size');
+                return;
+            }
+            root.scrollList.updateSize(newSize);
+            root2.scrollList.updateSize(newSize);
+
+            root.scrollList.reload();
+            root2.scrollList.reload();
+        });
+
+        function generateElement(index) {
+            const aa = document.createElement('p');
+            aa.style.height = '100px';
+            aa.style.width = '100%';
+            aa.appendChild(document.createTextNode('sibale ' + index));
+            return aa;
+        }
+
         for (const rootElem of [root, root2]) {
             rootElem.scrollList = new InfiScroll(rootElem, {
             generator: function(index, resolve) {
-                const aa = document.createElement('p');
-                aa.style.height = '100px';
-                aa.style.width = '100%';
-                aa.appendChild(document.createTextNode('sibale ' + index));
-				if (index > 40) {
-                    resolve(null);
-                    return;
+                let result;
+                if (index.constructor === Array) {
+                    result = [];
+                    for (const id of index) {
+                        result.push(generateElement(id));
+                    }
+                } else {
+                    result = generateElement(index);
                 }
 
-                setTimeout(() => resolve(aa), Math.random() * 1000 >>> 0);
+                setTimeout(() => resolve(result), Math.random() * 1000 >>> 0);
             },
             childSize: 100,
-            treshold: 5,
+            treshold: 7,
             throttleScroll: false,
-            size: 40,
+            size: 100,
+            keepPositionOnReload: true,
+            elementLimit: 30,
+            batchLoad: true,
             spinner: show => {
                 spinner.style.opacity = show ? 1 : 0;
-            }
+            },
+            check: () => true
         });
         }
     }();

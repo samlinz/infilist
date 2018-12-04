@@ -477,7 +477,7 @@
             return;
         }
         this.__reloading = true;
-
+       
         // Mark elements to be removed after reload.
         const childNodes = this.element.childNodes;
         const childrenToRemove = [];
@@ -498,7 +498,6 @@
         this.__queue = [];
         this.__cacheQueue = [];
         if (!this.__keepPositionOnReload) {
-            alert('aiee')
             this.__dummyElement.top = 0;
             this.__currentScrollHeight = 0;
         }
@@ -726,11 +725,27 @@
             this.__currentScrollHeight = newMaxScrollHeight;
         }
 
-        // Reload page if the size becomes smaller.
+        // Remove list elements which' index is too large for the new size.
+        let removeElements = [];
         for (const domElementId of this.__domElements) {
             if (domElementId > newSize) {
-                setTimeout(this.reload.bind(this), 0);
-                break;
+                removeElements.push(domElementId);
+            }
+        }
+
+        if (removeElements.length) {
+            removeChildren.call(this, this.element, removeElements);
+            for (const removedChild of removeElements) {
+                this.__domElements.delete(removedChild);
+                this.__cache.delete(removedChild);
+                const queueIndex = this.__queue.indexOf(removedChild);
+                if (queueIndex !== -1) {
+                    this.__queue.splice(queueIndex, 1);
+                }
+                const cacheIndex = this.__cacheQueue.indexOf(removedChild);
+                if (cacheIndex !== -1) {
+                    this.__cacheQueue.splice(cacheIndex, 1);
+                }
             }
         }
     }

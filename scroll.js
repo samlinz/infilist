@@ -1,5 +1,4 @@
 //const debugView = document.getElementById('debug-view');
-
 !(function () {
     "use strict";
 
@@ -65,8 +64,8 @@
         // to calculate the fixed height.
         if (!childSize) return [0];
 
-        const top = Math.max(rootTop, 0),
-            totalHeight = rootHeight + treshold,
+        const top = Math.max(rootTop - treshold, 0),
+            totalHeight = rootHeight + treshold * 2,
             firstChildInView = (top / childSize) >>> 0,
             firstChildExcess = firstChildInView * childSize,
             viewLeft = totalHeight - (firstChildExcess - rootTop),
@@ -180,6 +179,14 @@
             }
         }
 
+        stretchList.call(this, index);
+    }
+
+    function stretchList(index) {
+        if (!this.__childSize || !this.__size) return;
+
+        const childTop = index * this.__childSize;
+
         // Stretch the view below last loaded element if not the last element.
         const finalElement = index === this.__size
 
@@ -223,8 +230,8 @@
         // Position dummy element to stretch the container to full height on load.
         if (!this.__fixedSize) return;
 
-        this.__dummyElement.style.top = `${this.__childSize *
-            (this.__size + 1)}px`;
+        const newTop = this.__childSize * (this.__size + 1);
+        this.__dummyElement.style.top = `${newTop}px`;
         this.element.appendChild(this.__dummyElement);
     }
 
@@ -234,11 +241,6 @@
             if (this.__dummyElement) {
                 this.__dummyElement.style.top = `${totalHeight}px`;
             }
-
-            // Get rid of spinner.
-            if (this.__spinner) {
-                this.__spinner(false);
-            }
         }
     }
 
@@ -246,11 +248,23 @@
         if (!uniqueIdentifier) {
             throw Error('Null uniqueIdentifier');
         }
-        
+
         // Validate returned new child element.
-        if (newElement === null || newElement === undefined) {
+        if (newElement === null
+            || newElement === undefined
+            || (newElement.constructor === Array && newElement.length === 0)) {
             // Generator returned null. Either hit end of the list or an error happened.
-            endOfListHit.call(this);
+            //endOfListHit.call(this);
+
+            // Prevent botched queries hanging around forever.
+            if (index.constructor === Array) {
+                for (const queryToDelete of index) {
+                    this.__queries.delete(queryToDelete);
+                }
+            } else {
+                this.__queries.delete(index);
+            }
+
             return;
         }
 
@@ -281,12 +295,20 @@
         this.__queries.delete(index);
         if (this.__queries.size === 0 && this.__reloading) {
             this.__reloading = false;
+            
+            if (this.__reloadingChildrenToRemove) {
+                for (const elementToRemove of this.__reloadingChildrenToRemove) {
+                    this.element.removeChild(elementToRemove);
+                }
+                this.__reloadingChildrenToRemove = null;
+            }
+
             if (this.__reloadAfterInvalidation) {
                 // A new reload request has been fire while the first reload
                 // was going on; invalidate again.
                 this.__reloadAfterInvalidation = false;
                 const reload = this.reload.bind(this);
-                setTimeout(() => reload(), 0);
+                setTimeout(() => reload(), 1000);
                 return;
             }
         }
@@ -366,7 +388,7 @@
                 }, SCROLL_THROTTLE);
             }
         };
-        this.__scrollListener.bind(this);
+        this.__scrollListener = this.__scrollListener.bind(this);
         elem.addEventListener("scroll", this.__scrollListener);
 
         // Clear the container.
@@ -452,11 +474,11 @@
     ScrollElement.prototype.reload = function () {
         if (this.__reloading) {
             this.__reloadAfterInvalidation = true;
-            return; 
+            return;
         }
         this.__reloading = true;
 
-        // Remove elements from DOM.
+        // Mark elements to be removed after reload.
         const childNodes = this.element.childNodes;
         const childrenToRemove = [];
         for (const childElement of childNodes) {
@@ -464,9 +486,8 @@
                 childrenToRemove.push(childElement);
             }
         }
-        for (const childToRemove of childrenToRemove) {
-            this.element.removeChild(childToRemove);
-        }
+
+        this.__reloadingChildrenToRemove = childrenToRemove;
 
         // Clear caches etc.
         this.__domElements.clear();
@@ -477,6 +498,7 @@
         this.__queue = [];
         this.__cacheQueue = [];
         if (!this.__keepPositionOnReload) {
+            alert('aiee')
             this.__dummyElement.top = 0;
             this.__currentScrollHeight = 0;
         }
@@ -587,6 +609,7 @@
         const uniqueIdentifier = this.__uniqueIdentifier;
 
         // Generate required list elements.
+        let lastChild = null;
         for (const childToQuery of difference) {
             // Do not attempt to load elements past the fixed size.
             if (this.__size && childToQuery >= this.__size) continue;
@@ -616,7 +639,18 @@
                     childrenToLoad.push(childToQuery);
                 }
             }
+
+            lastChild = childToQuery;
         }
+
+        // Stretch the list down even before the elements have been loaded so
+        // the scroll isn't so jagged.
+        if (lastChild) {
+            stretchList.call(this, lastChild);
+        }
+
+        if (!childrenToLoad.length)
+            return;
 
         const onGenerated = onListItemGenerated.bind(this);
         const generate = this.__query.bind(this);
@@ -690,6 +724,14 @@
         if (dummyTop > newMaxScrollHeight) {
             this.__dummyElement.style.top = `${newMaxScrollHeight}px`;
             this.__currentScrollHeight = newMaxScrollHeight;
+        }
+
+        // Reload page if the size becomes smaller.
+        for (const domElementId of this.__domElements) {
+            if (domElementId > newSize) {
+                setTimeout(this.reload.bind(this), 0);
+                break;
+            }
         }
     }
 

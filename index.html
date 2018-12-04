@@ -227,14 +227,13 @@
                     result = generateElement(index);
                 }
 
-                setTimeout(() => resolve(result), Math.random() * 1000 >>> 0);
+                setTimeout(() => resolve(result), Math.random() * 400 >>> 0);
             },
             childSize: 100,
             treshold: 7,
             throttleScroll: false,
             size: 100,
             keepPositionOnReload: true,
-            elementLimit: 30,
             batchLoad: true,
             spinner: show => {
                 spinner.style.opacity = show ? 1 : 0;

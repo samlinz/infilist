@@ -180,6 +180,15 @@
             }
         }
 
+        const finalElement = index === (this.__size - 1);
+        if (finalElement) {
+            if (this.__finalElement && this.__finalElement !== elem) {
+                this.__finalElement.classList.remove("last-of-list");
+            }
+            elem.classList.add("last-of-list");
+            this.__finalElement = elem;
+        }
+
         stretchList.call(this, index);
     }
 
@@ -189,7 +198,7 @@
         const childTop = index * this.__childSize;
 
         // Stretch the view below last loaded element if not the last element.
-        const finalElement = index === this.__size
+        const finalElement = index === (this.__size - 1);
 
         if (!finalElement) {
             // const currentScrollHeight = this.element.scrollHeight;

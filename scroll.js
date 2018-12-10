@@ -1,4 +1,5 @@
 //const debugView = document.getElementById('debug-view');
+
 !(function () {
     "use strict";
 
@@ -712,6 +713,7 @@
             throw Error(`Invalid size ${size}`);
         const newSize = +size;
 
+        if (newSize === this.__size) return;
         this.__size = newSize;
 
         // Update scroll element height if fixed.
@@ -723,6 +725,7 @@
         if (dummyTop > newMaxScrollHeight) {
             this.__dummyElement.style.top = `${newMaxScrollHeight}px`;
             this.__currentScrollHeight = newMaxScrollHeight;
+            this.element.scrollTop = newMaxScrollHeight - this.element.clientHeight;
         }
 
         // Remove list elements which' index is too large for the new size.

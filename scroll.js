@@ -543,8 +543,15 @@
         }
 
         // Get scrollable view dimensions.
-        const scrollTop = this.element.scrollTop;
+        let scrollTop = this.element.scrollTop;
         const height = this.element.clientHeight;
+
+        // If element is not visible, scrollTop returns 0.
+        // In this case use the previous value if recorded.
+        if (!scrollTop && !this.offsetParent && this.__lastScrollTop) {
+            scrollTop = this.__lastScrollTop;
+        }
+        this.__lastScrollTop = scrollTop;
 
         // Calculate which elements are in the view or inside treshold.
         const elementsInView = getChildrenInView(

@@ -209,7 +209,7 @@
                 const dummyTop = Math.min(maxScrollHeight, newDummyTop);
                 this.__dummyElement.style.top = `${dummyTop}px`;
                 this.__currentScrollHeight = dummyTop;
-                if (!this.__dummyElement.offsetParent)
+                if (!isElementVisible(this.__dummyElement))
                     this.element.appendChild(this.__dummyElement);
             }
         }
@@ -245,13 +245,22 @@
         this.element.appendChild(this.__dummyElement);
     }
 
-    function endOfListHit() {
-        if (!this.__size && this.__lastItemGenerated) {
-            const totalHeight = this.__lastItemGenerated * this.__childSize;
-            if (this.__dummyElement) {
-                this.__dummyElement.style.top = `${totalHeight}px`;
-            }
-        }
+    // function endOfListHit() {
+    //     if (!this.__size && this.__lastItemGenerated) {
+    //         const totalHeight = this.__lastItemGenerated * this.__childSize;
+    //         if (this.__dummyElement) {
+    //             this.__dummyElement.style.top = `${totalHeight}px`;
+    //         }
+    //     }
+    // }
+
+    /**
+     * Get boolean value indicating whether the element is currently visible.
+     * 
+     * @param {HTMLElement} element DOM element of which' visibility you want to get.
+     */
+    function isElementVisible(element) {
+        return element.offsetParent;
     }
 
     function onListItemGenerated(index, newElement, uniqueIdentifier) {
@@ -303,6 +312,7 @@
 
         // Remove this index from pending queries.
         this.__queries.delete(index);
+
         if (this.__queries.size === 0 && this.__reloading) {
             this.__reloading = false;
             
@@ -334,9 +344,9 @@
         this.__domElements.add(index);
 
         // Keep track of the max index in list.
-        if (!this.__lastItemGenerated || index > this.__lastItemGenerated) {
-            this.__lastItemGenerated = index;
-        }
+        // if (!this.__lastItemGenerated || index > this.__lastItemGenerated) {
+        //     this.__lastItemGenerated = index;
+        // }
 
         addChild.call(this, index, newElement);
     }
@@ -537,7 +547,7 @@
                     return;
             } else {
                 // If the element is not visible, do not update.
-                if (this.element.offsetParent === null)
+                if (isElementVisible(this.element) === null)
                     return;
             }
         }
@@ -548,7 +558,7 @@
 
         // If element is not visible, scrollTop returns 0.
         // In this case use the previous value if recorded.
-        if (!scrollTop && !this.offsetParent && this.__lastScrollTop) {
+        if (!scrollTop && !isElementVisible(this.element) && this.__lastScrollTop) {
             scrollTop = this.__lastScrollTop;
         }
         this.__lastScrollTop = scrollTop;
@@ -747,7 +757,7 @@
         // Remove list elements which' index is too large for the new size.
         let removeElements = [];
         for (const domElementId of this.__domElements) {
-            if (domElementId > newSize) {
+            if (domElementId >= newSize) {
                 removeElements.push(domElementId);
             }
         }

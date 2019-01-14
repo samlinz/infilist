@@ -61,7 +61,7 @@
         }
 
         .scroll-container > * {
-            border: 1px double aquamarine;
+            border: 1px double white;
             animation: fadeIn 0.2s;
         }
 
@@ -135,7 +135,7 @@
 </head>
 <body>
 
-<h2>Scroll test</h2>
+<h2>InfiList Test Page</h2>
 <div id="scroll-wrapper">
     <div class="scroll-container" id="scroll-container">
     </div>
@@ -207,7 +207,14 @@
             const aa = document.createElement('p');
             aa.style.height = '100px';
             aa.style.width = '100%';
-            aa.appendChild(document.createTextNode('sibale ' + index));
+
+            const hexColorChars = '0123456789ABCDEF';
+            const rand_r = Math.floor(Math.random() * 256);
+            const rand_g = Math.floor(Math.random() * 256);
+            const rand_b = Math.floor(Math.random() * 256);
+            aa.style.backgroundColor = `rgba(${rand_r}, ${rand_g}, ${rand_b}, 0.2)`;
+
+            aa.appendChild(document.createTextNode('LIST ELEMENT ' + index));
             return aa;
         }
 
@@ -224,12 +231,12 @@
                         result = generateElement(index);
                     }
 
-                    setTimeout(() => resolve(result), Math.random() * 400 >>> 0);
+                    setTimeout(() => resolve(result), 0);
                 },
                 childSize: 100,
-                treshold: 7,
+                treshold: 2,
                 throttleScroll: false,
-                size: 100,
+                size: 100,  
                 keepPositionOnReload: true,
                 batchLoad: true,
                 spinner: show => {

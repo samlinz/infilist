@@ -1,5 +1,3 @@
-//const debugView = document.getElementById('debug-view');
-
 !(function () {
     "use strict";
 
@@ -71,17 +69,6 @@
             firstChildExcess = firstChildInView * childSize,
             viewLeft = totalHeight - (firstChildExcess - rootTop),
             childrenInView = Math.ceil(viewLeft / childSize);
-
-        // console.log("rootTop " + rootTop);
-        // console.log("rootHeight " + rootHeight);
-        // console.log("treshold " + treshold);
-        // console.log("childSize " + childSize);
-        // console.log("top " + top);
-        // console.log("totalHeight " + totalHeight);
-        // console.log("firstChildInView " + firstChildInView);
-        // console.log("firstChildExcess " + firstChildExcess);
-        // console.log("viewLeft " + viewLeft);
-        // console.log("childrenInView " + childrenInView);
 
         return numRange(firstChildInView, childrenInView);
     }
@@ -268,6 +255,8 @@
             throw Error('Null uniqueIdentifier');
         }
 
+        console.log(`generated ${index}`)
+
         // Validate returned new child element.
         if (newElement === null
             || newElement === undefined
@@ -328,8 +317,7 @@
                 // was going on; invalidate again.
                 this.__reloadAfterInvalidation = false;
                 const reload = this.reload.bind(this);
-                setTimeout(() => reload(), 1000);
-                return;
+                setTimeout(() => reload(), 10);
             }
         }
 
@@ -678,6 +666,8 @@
         if (!childrenToLoad.length)
             return;
 
+        console.log(`loading ${childrenToLoad}`)
+
         const onGenerated = onListItemGenerated.bind(this);
         const generate = this.__query.bind(this);
 
@@ -696,16 +686,6 @@
                     onGenerated(childToQuery, newElement, uniqueIdentifier));
             }
         }
-
-        //Update debug text.
-        // const debugString = [
-        //     "elementsinView " + JSON.stringify(elementsInView),
-        //     "queue " + JSON.stringify(this.__queue),
-        //     "cache " + JSON.stringify([...this.__cache]),
-        //     "cacheQueue " + JSON.stringify(this.__cacheQueue),
-        //     "children " + JSON.stringify([...this.__domElements])
-        // ];
-        // console.log(debugString.join(', '));
     };
 
     /**
@@ -761,6 +741,8 @@
                 removeElements.push(domElementId);
             }
         }
+
+        console.log('removing elements ' + JSON.stringify(removeElements))
 
         if (removeElements.length) {
             removeChildren.call(this, this.element, removeElements);

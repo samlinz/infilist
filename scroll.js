@@ -261,9 +261,6 @@
         if (newElement === null
             || newElement === undefined
             || (newElement.constructor === Array && newElement.length === 0)) {
-            // Generator returned null. Either hit end of the list or an error happened.
-            //endOfListHit.call(this);
-
             // Prevent botched queries hanging around forever.
             if (index.constructor === Array) {
                 for (const queryToDelete of index) {

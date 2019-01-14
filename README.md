@@ -4,6 +4,9 @@ Dynamically generated "infinite" list library for vanilla Javascript.
 Akin to RecyclerView in Android and many similar libraries in JS, but without
 dependencies.
 
+**Small demo:**
+https://samlinz.github.io/infilist/
+
 ## Features
 - No external dependecies, vanilla JS
 - Lazily generate list items with user provided asynchronous callback

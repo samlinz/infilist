@@ -213,30 +213,30 @@
 
         for (const rootElem of [root, root2]) {
             rootElem.scrollList = new InfiScroll(rootElem, {
-            generator: function(index, resolve) {
-                let result;
-                if (index.constructor === Array) {
-                    result = [];
-                    for (const id of index) {
-                        result.push(generateElement(id));
+                generator: function(index, resolve) {
+                    let result;
+                    if (index.constructor === Array) {
+                        result = [];
+                        for (const id of index) {
+                            result.push(generateElement(id));
+                        }
+                    } else {
+                        result = generateElement(index);
                     }
-                } else {
-                    result = generateElement(index);
-                }
 
-                setTimeout(() => resolve(result), Math.random() * 400 >>> 0);
-            },
-            childSize: 100,
-            treshold: 7,
-            throttleScroll: false,
-            size: 100,
-            keepPositionOnReload: true,
-            batchLoad: true,
-            spinner: show => {
-                spinner.style.opacity = show ? 1 : 0;
-            },
-            check: () => true
-        });
+                    setTimeout(() => resolve(result), Math.random() * 400 >>> 0);
+                },
+                childSize: 100,
+                treshold: 7,
+                throttleScroll: false,
+                size: 100,
+                keepPositionOnReload: true,
+                batchLoad: true,
+                spinner: show => {
+                    spinner.style.opacity = show ? 1 : 0;
+                },
+                check: () => true
+            });
         }
     }();
 </script>

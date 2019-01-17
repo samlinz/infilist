@@ -730,9 +730,16 @@
         // Update scroll element height so it doesn't go out of bounds.
         const newMaxScrollHeight = newSize * this.__childSize;
         const dummyTop = Number.parseInt(this.__dummyElement.style.top);
+        const scrollTop = this.element.scrollTop + this.element.clientHeight;
+
+        // Move the dummy element so the list doesn't stretch over last element.
         if (dummyTop > newMaxScrollHeight) {
             this.__dummyElement.style.top = `${newMaxScrollHeight}px`;
             this.__currentScrollHeight = newMaxScrollHeight;
+        }
+
+        // Move visible area up if it is left outside the new list size.
+        if (scrollTop > newMaxScrollHeight) {
             this.element.scrollTop = Math.max(newMaxScrollHeight
                 - this.element.clientHeight, 0);
         }

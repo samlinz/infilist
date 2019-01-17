@@ -43,7 +43,6 @@
 
     /**
      * Log warning message.
-     *
      * @param {string} msg Message.
      */
     function warn(msg) {
@@ -180,7 +179,7 @@
     }
 
     function stretchList(index) {
-        if (!this.__childSize || !this.__size) return;
+        if (this.__fixedSize || !this.__childSize || typeof this.__size !== "number") return;
 
         const childTop = index * this.__childSize;
 
@@ -227,9 +226,11 @@
         // Position dummy element to stretch the container to full height on load.
         if (!this.__fixedSize) return;
 
-        const newTop = this.__childSize * (this.__size + 1);
+        const newTop = this.__childSize * this.__size;
         this.__dummyElement.style.top = `${newTop}px`;
-        this.element.appendChild(this.__dummyElement);
+
+        if (!isElementVisible(this.__dummyElement))
+            this.element.appendChild(this.__dummyElement);
     }
 
     // function endOfListHit() {
@@ -254,8 +255,6 @@
         if (!uniqueIdentifier) {
             throw Error('Null uniqueIdentifier');
         }
-
-        console.log(`generated ${index}`)
 
         // Validate returned new child element.
         if (newElement === null
@@ -557,13 +556,19 @@
         );
 
         // Calculate set difference; which elements should be loaded.
-        const difference = elementsInView.filter(
+        let difference = elementsInView.filter(
             e => !this.__domElements.has(e)
         );
+        // Remove elements which have index higher than the set size of the list.
+        difference = difference
+            .filter(e => {
+                if (typeof this.__size === "number") {
+                    return e < this.__size;
+                }
+                return true;
+            });
 
         this.__inView = new Set(elementsInView);
-        difference
-            .filter(e => (this.__size ? e <= this.__size : true));
 
         // If a limit for loaded DOM elements has been set, remove the oldest
         // elementst in list.
@@ -663,8 +668,6 @@
         if (!childrenToLoad.length)
             return;
 
-        console.log(`loading ${childrenToLoad}`)
-
         const onGenerated = onListItemGenerated.bind(this);
         const generate = this.__query.bind(this);
 
@@ -712,11 +715,13 @@
     };
 
     ScrollElement.prototype.updateSize = function (size) {
-        if (!size || +size < 0)
+        if (typeof size !== "number" || size < 0)
             throw Error(`Invalid size ${size}`);
+
+        const oldSize = this.__size;
         const newSize = +size;
 
-        if (newSize === this.__size) return;
+        if (newSize === oldSize) return;
         this.__size = newSize;
 
         // Update scroll element height if fixed.
@@ -728,7 +733,8 @@
         if (dummyTop > newMaxScrollHeight) {
             this.__dummyElement.style.top = `${newMaxScrollHeight}px`;
             this.__currentScrollHeight = newMaxScrollHeight;
-            this.element.scrollTop = newMaxScrollHeight - this.element.clientHeight;
+            this.element.scrollTop = Math.max(newMaxScrollHeight
+                - this.element.clientHeight, 0);
         }
 
         // Remove list elements which' index is too large for the new size.
@@ -738,8 +744,6 @@
                 removeElements.push(domElementId);
             }
         }
-
-        console.log('removing elements ' + JSON.stringify(removeElements))
 
         if (removeElements.length) {
             removeChildren.call(this, this.element, removeElements);
@@ -755,6 +759,23 @@
                     this.__cacheQueue.splice(cacheIndex, 1);
                 }
             }
+        }
+
+        if (newSize === 0) {
+            // If list is emptied, verify that there are no elements ghosting.
+            let ghostElement;
+            while ((ghostElement = this.element.firstChild)) {
+                if (!ghostElement.id.includes(MODULE_NAME))
+                    continue;
+                warn(`Found an child element '${ghostElement.id}' when the size was set to 0!`);
+                    this.element.removeChild(ghostElement);
+            }
+        }
+
+        // The list needs to be invalidated if it was empty,
+        // otherwise nothing will be visible.
+        if (oldSize === 0) {
+            this.invalidate.call(this);
         }
     }
 

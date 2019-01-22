@@ -178,6 +178,12 @@
         stretchList.call(this, index);
     }
 
+    /**
+     * In dynamic sized list, stretch the list DOM element below the last
+     * existing element so new elements can be generated when scrolling below it.
+     * 
+     * @param {number} index Last generated item index.
+     */
     function stretchList(index) {
         if (this.__fixedSize || !this.__childSize || typeof this.__size !== "number") return;
 
@@ -222,6 +228,9 @@
         }
     }
 
+    /**
+     * In fixed size list, position dummy element to the end of the virtual list.
+     */
     function positionDummyElement() {
         // Position dummy element to stretch the container to full height on load.
         if (!this.__fixedSize) return;
@@ -232,15 +241,6 @@
         if (!isElementVisible(this.__dummyElement))
             this.element.appendChild(this.__dummyElement);
     }
-
-    // function endOfListHit() {
-    //     if (!this.__size && this.__lastItemGenerated) {
-    //         const totalHeight = this.__lastItemGenerated * this.__childSize;
-    //         if (this.__dummyElement) {
-    //             this.__dummyElement.style.top = `${totalHeight}px`;
-    //         }
-    //     }
-    // }
 
     /**
      * Get boolean value indicating whether the element is currently visible.
@@ -298,25 +298,6 @@
         // Remove this index from pending queries.
         this.__queries.delete(index);
 
-        if (this.__queries.size === 0 && this.__reloading) {
-            this.__reloading = false;
-            
-            if (this.__reloadingChildrenToRemove) {
-                for (const elementToRemove of this.__reloadingChildrenToRemove) {
-                    this.element.removeChild(elementToRemove);
-                }
-                this.__reloadingChildrenToRemove = null;
-            }
-
-            if (this.__reloadAfterInvalidation) {
-                // A new reload request has been fire while the first reload
-                // was going on; invalidate again.
-                this.__reloadAfterInvalidation = false;
-                const reload = this.reload.bind(this);
-                setTimeout(() => reload(), 10);
-            }
-        }
-
         // Remove loaded element from cache.
         this.__cache.delete(index);
         const cachePosition = this.__cacheQueue.indexOf(index);
@@ -327,12 +308,30 @@
         // Put to the tail of the queues.
         this.__domElements.add(index);
 
-        // Keep track of the max index in list.
-        // if (!this.__lastItemGenerated || index > this.__lastItemGenerated) {
-        //     this.__lastItemGenerated = index;
-        // }
-
         addChild.call(this, index, newElement);
+
+        // If a request to reload the list was made during reload, reload again
+        // as the current state might not be valid anymore.
+        if (this.__queries.size === 0) {
+            if (this.__reloading) {
+                this.__reloading = false;
+            
+                if (this.__reloadingChildrenToRemove) {
+                    for (const elementToRemove of this.__reloadingChildrenToRemove) {
+                        this.element.removeChild(elementToRemove);
+                    }
+                    this.__reloadingChildrenToRemove = null;
+                }
+    
+                if (this.__reloadAfterInvalidation) {
+                    // A new reload request has been fire while the first reload
+                    // was going on; invalidate again.
+                    this.__reloadAfterInvalidation = false;
+                    const reload = this.reload.bind(this);
+                    setTimeout(() => reload(), 10);
+                }
+            }
+        }
     }
 
     /**
@@ -475,6 +474,16 @@
         setTimeout(this.invalidate.bind(this), 0);
     }
 
+    /**
+     * Remove all DOM elements and cached items and initiate invalidation.
+     * This should be done when existing list structure is no longer valid.
+     * 
+     * For example, if new elements are inserted in the middle of the list
+     * the list has to be reloaded.
+     * 
+     * If a reload is initiated while reload/invalidation cycle is still
+     * going on the reload will be deferred until the previous cycle is done.
+    */
     ScrollElement.prototype.reload = function () {
         if (this.__reloading) {
             this.__reloadAfterInvalidation = true;
@@ -628,8 +637,8 @@
         let lastChild = null;
         for (const childToQuery of difference) {
             // Do not attempt to load elements past the fixed size.
-            if (this.__size && childToQuery >= this.__size) continue;
-
+            if (typeof this.__size === "number" && childToQuery >= this.__size) continue;
+            
             // Show spinner if applicable.
             if (this.__spinner) {
                 this.__spinner(true);
@@ -771,11 +780,15 @@
         if (newSize === 0) {
             // If list is emptied, verify that there are no elements ghosting.
             let ghostElement;
-            while ((ghostElement = this.element.firstChild)) {
-                if (!ghostElement.id.includes(MODULE_NAME))
+            const childElements = Array.from(this.element.children);
+            for (const childElement of childElements) {
+                // Ignore non-list elements.
+                if (!childElement.id.includes(MODULE_NAME))
                     continue;
+                
+                // Remove all ghost item elements.
                 warn(`Found an child element '${ghostElement.id}' when the size was set to 0!`);
-                    this.element.removeChild(ghostElement);
+                this.element.removeChild(ghostElement);
             }
         }
 
@@ -786,6 +799,9 @@
         }
     }
 
+    /**
+     * Dispose event listeners when the list is no longer needed.
+     */
     ScrollElement.prototype.dispose = function () {
         window.removeEventListener("resize", this.__resizeListener);
         this.element.removeEventListener("scroll", this.__scrollListener);

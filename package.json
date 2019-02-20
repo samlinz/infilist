@@ -13,6 +13,7 @@
     "@babel/preset-env": "^7.1.0",
     "gulp": "^4.0.0",
     "gulp-babel": "^8.0.0",
+    "gulp-cli": "^2.0.1",
     "gulp-header": "^2.0.5",
     "gulp-rename": "^1.4.0",
     "gulp-uglify": "^3.0.1",

@@ -326,6 +326,7 @@
                 if (this.__reloadAfterInvalidation) {
                     // A new reload request has been fire while the first reload
                     // was going on; invalidate again.
+                    console.log('reloading after invalidation' + Date.now())
                     this.__reloadAfterInvalidation = false;
                     const reload = this.reload.bind(this);
                     setTimeout(() => reload(), 10);
@@ -779,7 +780,6 @@
 
         if (newSize === 0) {
             // If list is emptied, verify that there are no elements ghosting.
-            let ghostElement;
             const childElements = Array.from(this.element.children);
             for (const childElement of childElements) {
                 // Ignore non-list elements.
@@ -787,8 +787,8 @@
                     continue;
                 
                 // Remove all ghost item elements.
-                warn(`Found an child element '${ghostElement.id}' when the size was set to 0!`);
-                this.element.removeChild(ghostElement);
+                warn(`Found an child element '${childElement.id}' when the size was set to 0!`);
+                this.element.removeChild(childElement);
             }
         }
 

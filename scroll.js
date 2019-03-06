@@ -318,7 +318,11 @@
             
                 if (this.__reloadingChildrenToRemove) {
                     for (const elementToRemove of this.__reloadingChildrenToRemove) {
-                        this.element.removeChild(elementToRemove);
+                        try {
+                            this.element.removeChild(elementToRemove);
+                        } catch (err) {
+                            warn(`Child ${elementToRemove.id} to be removed after reload was not a child of root element (anymore)`)
+                        }
                     }
                     this.__reloadingChildrenToRemove = null;
                 }
@@ -326,7 +330,6 @@
                 if (this.__reloadAfterInvalidation) {
                     // A new reload request has been fire while the first reload
                     // was going on; invalidate again.
-                    console.log('reloading after invalidation' + Date.now())
                     this.__reloadAfterInvalidation = false;
                     const reload = this.reload.bind(this);
                     setTimeout(() => reload(), 10);

@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Title</title>
     <style>
         * {
@@ -22,7 +23,7 @@
 
         .button-row {
             display: flex;
-            flex-flow: row nowrap;
+            flex-flow: row wrap;
             justify-items: center;
             width: 30%;
             margin: auto;
@@ -62,7 +63,7 @@
 
         .scroll-container > * {
             border: 1px double white;
-            animation: fadeIn 0.2s;
+            /* animation: fadeIn 0.2s; */
         }
 
         #debug-info {
@@ -150,6 +151,7 @@
     <input type="button" value="LIST 1" id="button-1">
     <input type="button" value="LIST 2" id="button-2">
     <input type="button" value="CHANGE SIZE" id="button-3">
+    <input type="button" value="FIXED SIZE" id="button-4">
 </div>
 
 <!--<script src="build/scroll.min.js"></script>-->
@@ -160,10 +162,16 @@
         const button1 = document.getElementById('button-1');
         const button2 = document.getElementById('button-2');
         const button3 = document.getElementById('button-3');
+        const button4 = document.getElementById('button-4');
         const root = document.getElementById('scroll-container');
         const root2 = document.getElementById('scroll-container-2');
         const spinner = document.querySelector('.spinner');
         let listCount = 0;
+
+        const fixedSize = sessionStorage.getItem('fixedSize') === 'true';
+        if (fixedSize) {
+            button4.style.color = 'red';
+        }
 
         function getNewElement(text, height) {
             const elem = document.createElement('p');
@@ -203,6 +211,11 @@
             root2.scrollList.reload();
         });
 
+        button4.addEventListener('click', () => {
+            sessionStorage.setItem('fixedSize', !fixedSize);
+            location.reload();
+        });
+
         function generateElement(index) {
             const aa = document.createElement('p');
             aa.style.height = '100px';
@@ -231,14 +244,16 @@
                         result = generateElement(index);
                     }
 
-                    setTimeout(() => resolve(result), 0);
+                    setTimeout(() => resolve(result), Math.random() * 100 >>> 0);
                 },
                 childSize: 100,
-                treshold: 2,
+                treshold: 3,
                 throttleScroll: false,
-                size: 100,  
+                elementLimit: 50,
+                size: 1000,  
                 keepPositionOnReload: true,
                 batchLoad: true,
+                fixedSize: fixedSize,
                 spinner: show => {
                     spinner.style.opacity = show ? 1 : 0;
                 },

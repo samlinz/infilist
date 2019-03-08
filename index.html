@@ -154,10 +154,10 @@
     <input type="button" value="FIXED SIZE" id="button-4">
 </div>
 
-<!--<script src="build/scroll.min.js"></script>-->
-<script src="scroll.js"></script>
+<script src="build/scroll.min.js"></script>
 <script>
     !function () {
+        // Bind DOM.
         const button = document.getElementById('button-reset');
         const button1 = document.getElementById('button-1');
         const button2 = document.getElementById('button-2');
@@ -168,17 +168,11 @@
         const spinner = document.querySelector('.spinner');
         let listCount = 0;
 
+        // Saved settings.
         const fixedSize = sessionStorage.getItem('fixedSize') === 'true';
+        const listSize = +sessionStorage.getItem('listSize') || 100;
         if (fixedSize) {
             button4.style.color = 'red';
-        }
-
-        function getNewElement(text, height) {
-            const elem = document.createElement('p');
-            const elemTxt = document.createTextNode(text);
-            elem.style.height = height || '3em';
-            elem.appendChild(elemTxt);
-            return elem;
         }
 
         button.addEventListener('click', () => {
@@ -204,6 +198,9 @@
                 alert('Invalid size');
                 return;
             }
+
+            sessionStorage.setItem('listSize', newSize);
+
             root.scrollList.updateSize(newSize);
             root2.scrollList.updateSize(newSize);
 
@@ -217,22 +214,27 @@
         });
 
         function generateElement(index) {
-            const aa = document.createElement('p');
-            aa.style.height = '100px';
-            aa.style.width = '100%';
+            const newElement = document.createElement('p');
+            newElement.style.height = '100px';
+            newElement.style.width = '100%';
 
             const hexColorChars = '0123456789ABCDEF';
             const rand_r = Math.floor(Math.random() * 256);
             const rand_g = Math.floor(Math.random() * 256);
             const rand_b = Math.floor(Math.random() * 256);
-            aa.style.backgroundColor = `rgba(${rand_r}, ${rand_g}, ${rand_b}, 0.2)`;
+            newElement.style.backgroundColor = `rgba(${rand_r}, ${rand_g}, ${rand_b}, 0.2)`;
 
-            aa.appendChild(document.createTextNode('LIST ELEMENT ' + index));
-            return aa;
+            newElement.appendChild(document.createTextNode('LIST ELEMENT ' + index));
+            return newElement;
         }
 
+        // Initialize the scroll lists for each of the marked elements.
         for (const rootElem of [root, root2]) {
+            // Call the constructor.
             rootElem.scrollList = new InfiScroll(rootElem, {
+                // The generator function which is asynchronous function (or synchronous)
+                // that does whatever it wants to generate the list element DOM (of fixed size).
+                // When it is done, call the passed in resolve() callback to finish the generation.
                 generator: function(index, resolve) {
                     let result;
                     if (index.constructor === Array) {
@@ -244,19 +246,35 @@
                         result = generateElement(index);
                     }
 
+                    // Random small delay to simulate computation or something.
                     setTimeout(() => resolve(result), Math.random() * 100 >>> 0);
                 },
+                // Child size in pixels. Each element must be the same size because the list is virtual.
                 childSize: 100,
+                // Treshold, or how many elements are preloaded outside the visible area.
                 treshold: 3,
+                // Throttle scrolling until the scrolling has finished. Useful maybe on mobile devices if
+                // the scroll event is fired too often. If true the list can however seem to load quite
+                // slowly because the event is not fired immediately on scroll.
                 throttleScroll: false,
+                // Limit of DOM elements kept on page. Used to keep the list scrolling smootly even if it is huge.
+                // The removed elements are kept in memory and not generated every time.
                 elementLimit: 50,
-                size: 1000,  
+                // Max size of the list. Required if list is of fixed size.
+                size: listSize,  
+                // If true then keep the scroll position when list is reloaded.
                 keepPositionOnReload: true,
+                // If true do not load the elements individually but in batches of varying size.
                 batchLoad: true,
+                // If true, the list size is fixed and scroll bar is for the full size immediately instead of
+                // growing whenever the bottom is scrolled to. This is what toggles between 'lazy' list and 'infinite' list.
                 fixedSize: fixedSize,
+                // Optionaly callback which shows and hides the spinner whenever elements are being loaded. Not required but nice visual.
                 spinner: show => {
                     spinner.style.opacity = show ? 1 : 0;
                 },
+                // Optional check callback which lets the user to control when the list is enabled or not.
+                // If the function is passed in and returns false, no generators are called and list is not updated when it is invalidated.
                 check: () => true
             });
         }
